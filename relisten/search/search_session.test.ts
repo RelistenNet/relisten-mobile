@@ -194,13 +194,23 @@ describe('SearchSession', () => {
     expect(fetches.at(-1)?.request.ignore).toEqual([]);
   });
 
-  it('gives each request a larger request_id', () => {
+  it('gives each request its own request_id', () => {
     session.setQuery('a');
     session.submit();
     session.submit();
     const [first, second] = fetches.map((fetch) => fetch.request.requestId);
     expect(first).not.toBe(second);
-    expect(Number(second.split('-')[1])).toBeGreaterThan(Number(first.split('-')[1]));
+  });
+
+  it('narrows to a tour’s shows under its artist in one request', () => {
+    session.narrowToTour({ artistId: 'artist_x', label: 'Phish' }, 'Summer Tour 1997');
+    expect(fetches).toHaveLength(1);
+    expect(fetches[0].request).toMatchObject({
+      q: 'Summer Tour 1997',
+      scope: 'shows',
+      artistId: 'artist_x',
+      typing: false,
+    });
   });
 
   it('stays quiet offline and searches again on reconnect', () => {

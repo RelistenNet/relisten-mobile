@@ -18,21 +18,46 @@ export type AddTracksTapTarget =
   | { kind: 'narrow-tour'; label: string; artistId: string; artistLabel: string }
   | { kind: 'push'; href: Href };
 
+/** The sheet's setlist screen picks the listener's preferred recording for this source ID. */
+export const INITIAL_SOURCE = 'initial';
+
+/** Which files a setlist highlights: one file, every file of a song, or both. */
+interface SetlistFocus {
+  focusTrackUuid?: string;
+  focusSongId?: string;
+}
+
+/** The sheet's setlist screen, with **+** on every file. */
+export function addTracksSourceHref(
+  playlistId: string,
+  { showUuid, sourceUuid, ...focus }: { showUuid: string; sourceUuid: string } & SetlistFocus
+): Href {
+  return {
+    pathname: `${SHEET}/source`,
+    params: {
+      playlistId,
+      showUuid,
+      sourceUuid,
+      ...(focus.focusTrackUuid ? { focusTrackUuid: focus.focusTrackUuid } : {}),
+      ...(focus.focusSongId ? { focusSongId: focus.focusSongId } : {}),
+    },
+  } as Href;
+}
+
 export function addTracksTapTarget(row: SearchCatalogRow, playlistId: string): AddTracksTapTarget {
   const push = (pathname: string, params: Record<string, string>): AddTracksTapTarget => ({
     kind: 'push',
     href: { pathname, params: { playlistId, ...params } } as Href,
   });
-  const setlist = (
-    showId: string,
-    sourceId: string | 'initial',
-    focus: Record<string, string> = {}
-  ) =>
-    push(`${SHEET}/source`, {
+  // The listener's source settings choose the recording when a row names none.
+  const setlist = (showId: string, sourceId: string | undefined, focus: SetlistFocus = {}) => ({
+    kind: 'push' as const,
+    href: addTracksSourceHref(playlistId, {
       showUuid: decodeUuidCatalogId(showId, 'show'),
-      sourceUuid: sourceId === 'initial' ? 'initial' : decodeUuidCatalogId(sourceId, 'source'),
+      sourceUuid: sourceId ? decodeUuidCatalogId(sourceId, 'source') : INITIAL_SOURCE,
       ...focus,
-    });
+    }),
+  });
 
   switch (row.kind) {
     case 'artist':
@@ -54,12 +79,12 @@ export function addTracksTapTarget(row: SearchCatalogRow, playlistId: string): A
       return push(`${SHEET}/shows`, {
         kind: 'venue',
         venueId: row.venue.id,
-        ...(!('artist_id' in row.venue)
-          ? {}
-          : { artistUuid: decodeUuidCatalogId(row.venue.artist_id, 'artist') }),
+        ...('artist_id' in row.venue
+          ? { artistUuid: decodeUuidCatalogId(row.venue.artist_id, 'artist') }
+          : {}),
       });
     case 'show':
-      return setlist(row.show.id, row.source?.id ?? 'initial');
+      return setlist(row.show.id, row.source?.id);
     case 'performance': {
       const track = row.preview_track;
       // Focus the exact file and any other files of the matched song.

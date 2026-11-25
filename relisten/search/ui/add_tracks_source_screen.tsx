@@ -19,6 +19,7 @@ import { useRealm } from '@/relisten/realm/schema';
 import type { RelistenTabGroupSegment } from '@/relisten/util/routes';
 import { showVenueName } from '@/relisten/util/venue_route';
 import { focusSetlistTracks } from '../add_tracks_focus';
+import { sourceHref } from '../search_routes';
 import { useAddTracks } from './add_tracks_context';
 import { AddTrackButton, OpenFullPageButton, SheetScrollAnchor } from './add_tracks_controls';
 
@@ -138,16 +139,11 @@ function sourceFullPageHref(
   source: Source,
   focusTrackUuid: string | undefined
 ): Href {
-  return {
-    pathname: `/relisten/tabs/${tab}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/` as const,
-    params: {
-      artistUuid: show.artistUuid,
-      showUuid: show.uuid,
-      sourceUuid: source.uuid,
-      exactSource: '1',
-      ...(focusTrackUuid ? { focusTrackUuid } : {}),
-    },
-  };
+  return sourceHref(
+    tab,
+    { artistUuid: show.artistUuid, showUuid: show.uuid, sourceUuid: source.uuid },
+    { exact: true, focusTrackUuid }
+  );
 }
 
 /**

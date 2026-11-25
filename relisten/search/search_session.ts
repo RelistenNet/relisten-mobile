@@ -10,7 +10,7 @@ export const SEARCH_DEBOUNCE_MS = 120;
  */
 export const SEARCH_SETTLE_MS = 700;
 
-/** How many empty playlist pages one scroll to the end follows before waiting for the next. */
+/** How many pages without new rows one scroll to the end follows before waiting for the next. */
 const MAX_EMPTY_SEARCH_PAGES = 5;
 
 /** An explicit artist filter, shown as a removable chip. */
@@ -188,6 +188,17 @@ export class SearchSession {
     this.changeInputs({ removedChipKeys }, { typing: false });
   }
 
+  /**
+   * Add Tracks' tour row: that tour's shows, under its artist, as one full
+   * search (setting the filter, text and tab one by one would send three).
+   */
+  narrowToTour(artistFilter: SearchArtistFilter, tourName: string) {
+    this.changeInputs(
+      { artistFilter, query: tourName, scope: 'shows', removedChipKeys: [], readingId: null },
+      { typing: false }
+    );
+  }
+
   /** Narrows to one artist (Add Tracks), or clears the filter with null. */
   setArtistFilter(artistFilter: SearchArtistFilter | null) {
     this.changeInputs({ artistFilter, readingId: null }, { typing: false });
@@ -197,7 +208,18 @@ export class SearchSession {
     this.restart();
   }
 
-  /** Continue a scoped search. An authorized page can be empty after filtering. */
+  /**
+   * Appends the next page of a tab. All has no pages; it links to tabs
+   * instead (`more_scopes`).
+   *
+   * A page can add nothing: the server filters out playlists the listener
+   * can't see after paging, and rows already shown are dropped by key. A page
+   * that adds nothing doesn't lengthen the list, so the list won't ask again
+   * on its own; this follows up to a few pages until one adds rows or there
+   * are no more. A page whose half is unavailable, or a failed request, stops
+   * here and keeps `next_page`, so the next scroll to the end retries it. Any
+   * input change aborts the page in flight.
+   */
   async loadMore() {
     const { response, responseInputs, inputs, pending, loadingMore } = this.state;
     const context = this.context;
@@ -249,7 +271,7 @@ export class SearchSession {
         }
       }
     } catch {
-      // Keep the previous page so scrolling again retries the same page.
+      // The pages already shown stay; scrolling to the end again retries.
     } finally {
       if (this.inFlight === controller) {
         this.inFlight = null;

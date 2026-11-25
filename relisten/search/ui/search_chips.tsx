@@ -2,13 +2,68 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { ScrollView, TouchableOpacity, View } from 'react-native';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { tw } from '@/relisten/util/tw';
-import { LITERAL_READING_ID } from '../search_presentation';
+import { LITERAL_READING_ID, visibleChips, visibleReadings } from '../search_presentation';
+import type { SearchSession, SearchSessionState } from '../search_session';
 import { showsTabChip, tabCountLabel, type SearchTabCounts } from '../search_tab_counts';
 import type { SearchInterpretationChip, SearchReading, SearchScope } from '../search_types';
 
 // A horizontal scroll view in a column either grows to fill it or clips its
 // chips while the keyboard animates, so each chip row gets a fixed height.
 const CHIP_ROW_STYLE = { flexGrow: 0, height: 44 } as const;
+
+// Every chip row scrolls sideways with the same insets.
+const CHIP_ROW_CONTENT_STYLE = {
+  gap: 8,
+  paddingHorizontal: 16,
+  paddingVertical: 4,
+  alignItems: 'center',
+} as const;
+
+/**
+ * Everything above the results, in order: tabs (once there is text), the
+ * clues the server read, readings to pick from, and the downloads narrowing
+ * when On this device is showing. The Search tab and Add Tracks share it.
+ */
+export function SearchChipsHeader({
+  session,
+  state,
+  includePlaylists,
+  narrowingLabel,
+  onClearNarrowing,
+}: {
+  session: SearchSession;
+  state: SearchSessionState;
+  includePlaylists: boolean;
+  /** Set while On this device is narrowed to one artist's or show's downloads. */
+  narrowingLabel?: string;
+  onClearNarrowing: () => void;
+}) {
+  const { query, scope } = state.inputs;
+  return (
+    <>
+      {query.trim() !== '' && (
+        <SearchScopeChips
+          scope={scope}
+          counts={state.tabTotals?.counts}
+          moreScopes={state.response?.more_scopes ?? []}
+          includePlaylists={includePlaylists}
+          onSelect={(next) => session.setScope(next)}
+        />
+      )}
+      <SearchInterpretationChips
+        chips={visibleChips(state)}
+        onRemove={(key) => session.removeChip(key)}
+      />
+      <SearchReadingChips
+        readings={visibleReadings(state)}
+        query={query}
+        selected={state.response?.readings.applied?.id ?? null}
+        onSelect={(id) => session.selectReading(id)}
+      />
+      {narrowingLabel && <NarrowingChip label={narrowingLabel} onClear={onClearNarrowing} />}
+    </>
+  );
+}
 
 const SCOPE_LABELS: { scope: SearchScope; label: string }[] = [
   { scope: 'all', label: 'All' },
@@ -51,12 +106,7 @@ export function SearchScopeChips({
       keyboardShouldPersistTaps="handled"
       style={CHIP_ROW_STYLE}
       contentInsetAdjustmentBehavior="never"
-      contentContainerStyle={{
-        gap: 8,
-        paddingHorizontal: 16,
-        paddingVertical: 4,
-        alignItems: 'center',
-      }}
+      contentContainerStyle={CHIP_ROW_CONTENT_STYLE}
     >
       {scopes.map((entry) => {
         const selected = entry.scope === scope;
@@ -106,12 +156,7 @@ export function SearchInterpretationChips({
       keyboardShouldPersistTaps="handled"
       style={CHIP_ROW_STYLE}
       contentInsetAdjustmentBehavior="never"
-      contentContainerStyle={{
-        gap: 8,
-        paddingHorizontal: 16,
-        paddingVertical: 4,
-        alignItems: 'center',
-      }}
+      contentContainerStyle={CHIP_ROW_CONTENT_STYLE}
     >
       {chips.map((chip) => (
         <TouchableOpacity
@@ -156,11 +201,7 @@ export function SearchReadingChips({
       keyboardShouldPersistTaps="handled"
       showsHorizontalScrollIndicator={false}
       style={CHIP_ROW_STYLE}
-      contentContainerStyle={{
-        gap: 8,
-        paddingHorizontal: 16,
-        alignItems: 'center',
-      }}
+      contentContainerStyle={CHIP_ROW_CONTENT_STYLE}
     >
       {readings.map((reading) => {
         const active = selected === reading.id;

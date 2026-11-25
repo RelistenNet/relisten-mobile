@@ -23,6 +23,43 @@ export type SearchListItem =
   | { type: 'local-playlist'; key: string; playlist: Playlist }
   | { type: 'recent'; key: string; entry: PlaybackHistoryEntry };
 
+/**
+ * The whole list for a search screen's current state: Recently Played before
+ * any text, the server's rows, or On this device above them when the catalog
+ * can't be searched. A playlist on this device is listed once, as its local
+ * row, not again as a server card.
+ */
+export function buildSearchListItems({
+  presentation,
+  scope,
+  query,
+  recentEntries,
+  recentEmptyHint,
+  local,
+}: {
+  presentation: SearchPresentation;
+  scope: SearchScope;
+  query: string;
+  recentEntries: readonly PlaybackHistoryEntry[];
+  recentEmptyHint: string;
+  local: LocalSearchResults;
+}): SearchListItem[] {
+  if (presentation.catalog.kind === 'recent') {
+    return buildRecentListItems(recentEntries, recentEmptyHint);
+  }
+
+  const remote = buildRemoteListItems(presentation, scope, query);
+  if (presentation.catalog.kind !== 'local') {
+    return remote;
+  }
+
+  const localPlaylistIds = new Set(local.playlists.map((playlist) => playlist.playlistId));
+  return [
+    ...buildLocalListItems(local, { retryable: presentation.catalog.retryable, query }),
+    ...remote.filter((item) => item.type !== 'playlist' || !localPlaylistIds.has(item.card.id)),
+  ];
+}
+
 /** Render the ranked server rows in their original order. */
 export function buildRemoteListItems(
   presentation: SearchPresentation,
@@ -55,13 +92,12 @@ export function buildRemoteListItems(
     });
   }
 
-  // Still waiting: the first answer hasn't arrived, or the Playlists scope has
-  // more pages whose cards may show even though this one showed none.
+  // Still waiting: the first answer hasn't arrived, or a tab has more pages
+  // whose rows may show even though this one showed none.
   const waiting =
     catalog.kind === 'waiting' ||
     playlists.kind === 'waiting' ||
-    (scope !== 'all' &&
-      (presentation.hasMore || (playlists.kind === 'available' && playlists.hasMore)));
+    (scope !== 'all' && !!presentation.hasMore);
   const hasResults = items.some((item) => item.type === 'row' || item.type === 'playlist');
 
   if (waiting && !hasResults) {

@@ -7,24 +7,14 @@ import { useHistoryRecentlyPlayedShows } from '@/relisten/realm/models/history/p
 import { usePushShowRespectingUserSettings } from '@/relisten/util/push_show';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { useGroupSegment } from '@/relisten/util/routes';
-import {
-  buildLocalListItems,
-  buildRecentListItems,
-  buildRemoteListItems,
-  type SearchListItem,
-} from '../search_list_items';
+import { buildSearchListItems } from '../search_list_items';
 import type { LocalNarrowing } from '../search_local';
-import { presentSearch, visibleChips, visibleReadings } from '../search_presentation';
+import { presentSearch } from '../search_presentation';
 import { localPlaylistHref, localTrackHref, playlistCardHref } from '../search_routes';
 import { useLocalSearchResults } from '../use_local_search_results';
 import { useOpenSearchResult } from '../use_open_search_result';
 import { useSearchSession } from '../use_search_session';
-import {
-  NarrowingChip,
-  SearchInterpretationChips,
-  SearchReadingChips,
-  SearchScopeChips,
-} from './search_chips';
+import { SearchChipsHeader } from './search_chips';
 import { SearchResultsList, type SearchListHandlers } from './search_results_list';
 import { useNativeSearchBar } from './use_native_search_bar';
 
@@ -64,26 +54,18 @@ export function SearchTabScreen() {
     includePlaylists: true,
   });
 
-  const items = useMemo((): SearchListItem[] => {
-    if (presentation.catalog.kind === 'recent') {
-      return buildRecentListItems(recentEntries, 'Search for artists, songs, venues and shows.');
-    }
-
-    const remote = buildRemoteListItems(presentation, scope, query);
-    if (presentation.catalog.kind !== 'local') {
-      return remote;
-    }
-
-    // A playlist on this device is listed once, as the local row.
-    const localIds = new Set(local.playlists.map((playlist) => playlist.playlistId));
-    return [
-      ...buildLocalListItems(local, {
-        retryable: presentation.catalog.retryable,
+  const items = useMemo(
+    () =>
+      buildSearchListItems({
+        presentation,
+        scope,
         query,
+        recentEntries,
+        recentEmptyHint: 'Search for artists, songs, venues and shows.',
+        local,
       }),
-      ...remote.filter((item) => item.type !== 'playlist' || !localIds.has(item.card.id)),
-    ];
-  }, [local, presentation, query, recentEntries, scope]);
+    [local, presentation, query, recentEntries, scope]
+  );
 
   // Every way out of the list dismisses the keyboard, so Back returns to the
   // results rather than to a keyboard covering them.
@@ -135,30 +117,13 @@ export function SearchTabScreen() {
       <Stack.Screen options={{ headerSearchBarOptions: searchBar }} />
       <SearchResultsList
         header={
-          <>
-            {query.trim() !== '' && (
-              <SearchScopeChips
-                scope={scope}
-                counts={state.tabTotals?.counts}
-                moreScopes={state.response?.more_scopes ?? []}
-                includePlaylists
-                onSelect={(next) => session.setScope(next)}
-              />
-            )}
-            <SearchInterpretationChips
-              chips={visibleChips(state)}
-              onRemove={(key) => session.removeChip(key)}
-            />
-            <SearchReadingChips
-              readings={visibleReadings(state)}
-              query={query}
-              selected={state.response?.readings.applied?.id ?? null}
-              onSelect={(id) => session.selectReading(id)}
-            />
-            {isLocal && narrowing.label && (
-              <NarrowingChip label={narrowing.label} onClear={() => setNarrowing({})} />
-            )}
-          </>
+          <SearchChipsHeader
+            session={session}
+            state={state}
+            includePlaylists
+            narrowingLabel={isLocal ? narrowing.label : undefined}
+            onClearNarrowing={() => setNarrowing({})}
+          />
         }
         items={items}
         handlers={handlers}

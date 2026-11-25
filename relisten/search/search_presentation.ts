@@ -30,11 +30,11 @@ export type PlaylistPresentation =
   | { kind: 'none' }
   | { kind: 'waiting' }
   | { kind: 'unavailable' }
-  /** `hasMore`: later pages may still have cards, even when this one showed none. */
-  | { kind: 'available'; hasMore: boolean };
+  | { kind: 'available' };
 
 export interface SearchPresentation {
   rows: SearchResult[];
+  /** Later pages may still add rows, even when this one showed none. */
   hasMore?: boolean;
   moreScopes?: SearchResponse['more_scopes'];
   catalog: CatalogPresentation;
@@ -109,9 +109,7 @@ export function presentSearch(
         : { kind: 'remote' }
     ),
     playlists: playlistsOr(
-      availability.playlists === 'unavailable'
-        ? { kind: 'unavailable' }
-        : { kind: 'available', hasMore: response.next_page !== null }
+      availability.playlists === 'unavailable' ? { kind: 'unavailable' } : { kind: 'available' }
     ),
     hasMore: response.next_page !== null,
     moreScopes: response.more_scopes,
@@ -126,19 +124,24 @@ export function presentSearch(
 /**
  * The chips above the results: the clues the server read, minus any the
  * listener removed (the previous answer may still carry one), plus an
- * explicit artist filter. Removing a chip goes through `SearchSession.removeChip`.
+ * explicit artist filter. A clue that a reading chip already offers isn't
+ * repeated as a removable chip. Removing a chip goes through
+ * `SearchSession.removeChip`.
  */
 export function visibleChips(state: SearchSessionState): SearchInterpretationChip[] {
   const { inputs, response } = state;
+  // Keys the reading chips cover. A place reading ("Barton Hall") stands for
+  // the venue clue the server reads from the same words.
+  const offeredByReadings = new Set(
+    visibleReadings(state).flatMap((reading) =>
+      reading.chips.flatMap((chip) => (chip.key === 'place' ? ['place', 'venue'] : [chip.key]))
+    )
+  );
   const read = (response?.readings.applied?.chips ?? []).filter(
     (chip) =>
       !inputs.removedChipKeys.includes(chip.key) &&
       !(chip.key === 'artist' && inputs.artistFilter) &&
-      !visibleReadings(state).some((reading) =>
-        reading.chips.some(
-          (option) => option.key === chip.key || (option.key === 'place' && chip.key === 'venue')
-        )
-      )
+      !offeredByReadings.has(chip.key)
   );
 
   if (!inputs.artistFilter) {

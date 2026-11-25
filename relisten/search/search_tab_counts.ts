@@ -20,7 +20,7 @@ export interface SearchTabTotals {
   counts: SearchTabCounts;
 }
 
-export function tabTotalsKey(inputs: SearchInputs): string {
+function tabTotalsKey(inputs: SearchInputs): string {
   return JSON.stringify([
     inputs.query.trim(),
     inputs.readingId,

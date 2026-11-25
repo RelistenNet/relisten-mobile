@@ -47,7 +47,7 @@ describe('buildRemoteListItems', () => {
     const presentation: SearchPresentation = {
       rows,
       catalog: { kind: 'remote' },
-      playlists: { kind: 'available', hasMore: false },
+      playlists: { kind: 'available' },
     };
     const items = buildRemoteListItems(presentation, 'all', 'lawn boy');
     expect(items.map((item) => item.key)).toEqual(rows.map((row) => row.key));
@@ -59,7 +59,7 @@ describe('buildRemoteListItems', () => {
       {
         rows: [card('playlist_a')],
         catalog: { kind: 'remote' },
-        playlists: { kind: 'available', hasMore: false },
+        playlists: { kind: 'available' },
         moreScopes: ['shows', 'sources'],
       },
       'all',
@@ -80,7 +80,7 @@ describe('buildRemoteListItems', () => {
     const empty: SearchPresentation = {
       rows: [],
       catalog: { kind: 'remote' },
-      playlists: { kind: 'available', hasMore: false },
+      playlists: { kind: 'available' },
     };
     expect(buildRemoteListItems(empty, 'all', ' zzz ')).toEqual([
       { type: 'message', key: 'empty', text: 'No results for “zzz”.' },
@@ -90,8 +90,9 @@ describe('buildRemoteListItems', () => {
   it('waits when an empty scoped page still has a continuation', () => {
     const page: SearchPresentation = {
       rows: [],
+      hasMore: true,
       catalog: { kind: 'none' },
-      playlists: { kind: 'available', hasMore: true },
+      playlists: { kind: 'available' },
     };
     expect(buildRemoteListItems(page, 'playlists', 'jams')).toEqual([
       { type: 'loading', key: 'loading' },

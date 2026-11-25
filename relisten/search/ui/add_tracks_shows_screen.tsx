@@ -13,6 +13,7 @@ import {
 } from '@/relisten/realm/models/shows/venue_shows_repo';
 import { useAddTracks } from './add_tracks_context';
 import { OpenFullPageButton, SheetScrollAnchor } from './add_tracks_controls';
+import { addTracksSourceHref, INITIAL_SOURCE } from '../add_tracks_routes';
 import { SearchLocalShowRow } from './search_result_row';
 
 type ShowsParams =
@@ -158,15 +159,13 @@ function ShowList({
             <SearchLocalShowRow
               show={show}
               onPress={() =>
-                router.push({
-                  pathname: '/relisten/add-tracks/source',
-                  params: {
-                    playlistId,
+                router.push(
+                  addTracksSourceHref(playlistId, {
                     showUuid: show.uuid,
-                    sourceUuid: 'initial',
-                    ...(focusSongId ? { focusSongId } : {}),
-                  },
-                })
+                    sourceUuid: INITIAL_SOURCE,
+                    focusSongId,
+                  })
+                )
               }
             />
           )}

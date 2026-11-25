@@ -7,27 +7,17 @@ import { useHistoryRecentlyPlayedShows } from '@/relisten/realm/models/history/p
 import { Playlist } from '@/relisten/realm/models/playlists/playlist';
 import { useObject } from '@/relisten/realm/schema';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
-import { addableTrack, addTracksTapTarget } from '../add_tracks_routes';
-import {
-  buildLocalListItems,
-  buildRecentListItems,
-  buildRemoteListItems,
-  type SearchListItem,
-} from '../search_list_items';
+import { addableTrack, addTracksSourceHref, addTracksTapTarget } from '../add_tracks_routes';
+import { buildSearchListItems } from '../search_list_items';
 import type { LocalNarrowing } from '../search_local';
-import { presentSearch, visibleChips, visibleReadings } from '../search_presentation';
+import { presentSearch } from '../search_presentation';
 import type { SearchCatalogRow } from '../search_types';
 import { useLocalSearchResults } from '../use_local_search_results';
 import { useOpenSearchResult } from '../use_open_search_result';
 import { useSearchSession } from '../use_search_session';
 import { useAddTracks } from './add_tracks_context';
 import { AddTrackButton, SheetScrollAnchor, useCloseAddTracks } from './add_tracks_controls';
-import {
-  NarrowingChip,
-  SearchInterpretationChips,
-  SearchReadingChips,
-  SearchScopeChips,
-} from './search_chips';
+import { SearchChipsHeader } from './search_chips';
 import { SearchResultsList, type SearchListHandlers } from './search_results_list';
 import { useNativeSearchBar } from './use_native_search_bar';
 
@@ -63,24 +53,18 @@ export function AddTracksResultsScreen() {
     includePlaylists: false,
   });
 
-  const items = useMemo((): SearchListItem[] => {
-    if (presentation.catalog.kind === 'recent') {
-      return buildRecentListItems(recentEntries, 'Search for a song, show or venue to add.');
-    }
-
-    const remote = buildRemoteListItems(presentation, scope, query);
-    if (presentation.catalog.kind !== 'local') {
-      return remote;
-    }
-
-    return [
-      ...buildLocalListItems(local, {
-        retryable: presentation.catalog.retryable,
+  const items = useMemo(
+    () =>
+      buildSearchListItems({
+        presentation,
+        scope,
         query,
+        recentEntries,
+        recentEmptyHint: 'Search for a song, show or venue to add.',
+        local,
       }),
-      ...remote,
-    ];
-  }, [local, presentation, query, recentEntries, scope]);
+    [local, presentation, query, recentEntries, scope]
+  );
 
   const pushInSheet = (href: Parameters<typeof router.push>[0]) => {
     Keyboard.dismiss();
@@ -97,9 +81,10 @@ export function AddTracksResultsScreen() {
         });
         return;
       case 'narrow-tour':
-        session.setArtistFilter({ artistId: target.artistId, label: target.artistLabel });
-        session.setQuery(target.label);
-        session.setScope('shows');
+        session.narrowToTour(
+          { artistId: target.artistId, label: target.artistLabel },
+          target.label
+        );
         return;
       case 'push':
         pushInSheet(target.href);
@@ -142,15 +127,13 @@ export function AddTracksResultsScreen() {
     onPressLocalArtist: (artist) => setNarrowing({ artistUuid: artist.uuid, label: artist.name }),
     onPressLocalShow: (show) => setNarrowing({ showUuid: show.uuid, label: show.displayDate }),
     onPressLocalTrack: (track) =>
-      pushInSheet({
-        pathname: '/relisten/add-tracks/source',
-        params: {
-          playlistId,
+      pushInSheet(
+        addTracksSourceHref(playlistId, {
           showUuid: track.showUuid,
           sourceUuid: track.sourceUuid,
           focusTrackUuid: track.uuid,
-        },
-      }),
+        })
+      ),
     trailingForLocalTrack: (track) => (
       <AddTrackButton
         trackId={trackIdForSourceTrack(track)}
@@ -160,14 +143,12 @@ export function AddTracksResultsScreen() {
     ),
     // Recently Played opens the source that was last played.
     onPressRecent: (entry) =>
-      pushInSheet({
-        pathname: '/relisten/add-tracks/source',
-        params: {
-          playlistId,
+      pushInSheet(
+        addTracksSourceHref(playlistId, {
           showUuid: entry.show.uuid,
           sourceUuid: entry.source.uuid,
-        },
-      }),
+        })
+      ),
   };
 
   const searchBar = useNativeSearchBar({
@@ -196,30 +177,13 @@ export function AddTracksResultsScreen() {
       <SheetScrollAnchor />
       <SearchResultsList
         header={
-          <>
-            {query.trim() !== '' && (
-              <SearchScopeChips
-                scope={scope}
-                counts={state.tabTotals?.counts}
-                moreScopes={state.response?.more_scopes ?? []}
-                includePlaylists={false}
-                onSelect={(next) => session.setScope(next)}
-              />
-            )}
-            <SearchInterpretationChips
-              chips={visibleChips(state)}
-              onRemove={(key) => session.removeChip(key)}
-            />
-            <SearchReadingChips
-              readings={visibleReadings(state)}
-              query={query}
-              selected={state.response?.readings.applied?.id ?? null}
-              onSelect={(id) => session.selectReading(id)}
-            />
-            {isLocal && narrowing.label && (
-              <NarrowingChip label={narrowing.label} onClear={() => setNarrowing({})} />
-            )}
-          </>
+          <SearchChipsHeader
+            session={session}
+            state={state}
+            includePlaylists={false}
+            narrowingLabel={isLocal ? narrowing.label : undefined}
+            onClearNarrowing={() => setNarrowing({})}
+          />
         }
         items={items}
         handlers={handlers}

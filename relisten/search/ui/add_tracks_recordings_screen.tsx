@@ -4,6 +4,7 @@ import { ItemSeparator } from '@/relisten/components/item_separator';
 import { ListRow } from '@/relisten/components/list_row';
 import { useFullShowWithSelectedSource } from '@/relisten/realm/models/show_repo';
 import type { Source } from '@/relisten/realm/models/source';
+import { addTracksSourceHref } from '../add_tracks_routes';
 import { useAddTracks } from './add_tracks_context';
 import { OpenFullPageButton, SheetScrollAnchor } from './add_tracks_controls';
 
@@ -52,15 +53,13 @@ export function AddTracksRecordingsScreen() {
               title={`Source #${index + 1}${source.isSoundboard ? ' · SBD' : ''}`}
               subtitle={recordingCredits(source)}
               onPress={() =>
-                router.push({
-                  pathname: '/relisten/add-tracks/source',
-                  params: {
-                    playlistId,
+                router.push(
+                  addTracksSourceHref(playlistId, {
                     showUuid,
                     sourceUuid: source.uuid,
-                    ...(focusSongId ? { focusSongId } : {}),
-                  },
-                })
+                    focusSongId,
+                  })
+                )
               }
             />
           )}

@@ -7,7 +7,7 @@ import type { SearchCatalogRow, SearchPlaylistCard } from './search_types';
  * A shared venue (`venue_…`) spans artists and has its own page; an imported
  * venue belongs to one artist and opens under it.
  */
-export const isSharedVenue = (venueId: string) => venueId.startsWith('venue_');
+const isSharedVenue = (venueId: string) => venueId.startsWith('venue_');
 
 /**
  * Where a Search-tab tap goes, once the row's artist is loaded:
@@ -40,16 +40,20 @@ export function searchTapTarget(
   const artistUuid = artist.uuid;
   const push = (href: Href): SearchTapTarget => ({ kind: 'push', href });
   const source = (showId: string, sourceId: string, focusTrackId?: string) =>
-    push({
-      pathname: `/relisten/tabs/${tab}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/` as const,
-      params: {
-        artistUuid,
-        showUuid: decodeUuidCatalogId(showId, 'show'),
-        sourceUuid: decodeUuidCatalogId(sourceId, 'source'),
-        exactSource: '1',
-        ...(focusTrackId ? { focusTrackUuid: decodeUuidCatalogId(focusTrackId, 'track') } : {}),
-      },
-    });
+    push(
+      sourceHref(
+        tab,
+        {
+          artistUuid,
+          showUuid: decodeUuidCatalogId(showId, 'show'),
+          sourceUuid: decodeUuidCatalogId(sourceId, 'source'),
+        },
+        {
+          exact: true,
+          focusTrackUuid: focusTrackId ? decodeUuidCatalogId(focusTrackId, 'track') : undefined,
+        }
+      )
+    );
 
   switch (row.kind) {
     case 'artist':
@@ -111,20 +115,33 @@ export function playlistCardHref(
   return undefined;
 }
 
+/**
+ * A source page in a tab. `exact` opens that recording even when the
+ * listener's source settings would prefer another; `focusTrackUuid` scrolls
+ * to a file and highlights it without playing it.
+ */
+export function sourceHref(
+  tab: RelistenTabGroupSegment,
+  ids: { artistUuid: string; showUuid: string; sourceUuid: string },
+  { exact = false, focusTrackUuid }: { exact?: boolean; focusTrackUuid?: string } = {}
+): Href {
+  return {
+    pathname: `/relisten/tabs/${tab}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/` as const,
+    params: {
+      ...ids,
+      ...(exact ? { exactSource: '1' } : {}),
+      ...(focusTrackUuid ? { focusTrackUuid } : {}),
+    },
+  };
+}
+
 /** A downloaded file from On this device, at its source, focused and not played. */
 export function localTrackHref(
   track: { artistUuid: string; showUuid: string; sourceUuid: string; uuid: string },
   tab: RelistenTabGroupSegment
 ): Href {
-  return {
-    pathname: `/relisten/tabs/${tab}/[artistUuid]/show/[showUuid]/source/[sourceUuid]/` as const,
-    params: {
-      artistUuid: track.artistUuid,
-      showUuid: track.showUuid,
-      sourceUuid: track.sourceUuid,
-      focusTrackUuid: track.uuid,
-    },
-  };
+  const { artistUuid, showUuid, sourceUuid } = track;
+  return sourceHref(tab, { artistUuid, showUuid, sourceUuid }, { focusTrackUuid: track.uuid });
 }
 
 export function localPlaylistHref(playlistId: string, tab: RelistenTabGroupSegment): Href {
