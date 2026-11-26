@@ -64,8 +64,10 @@ export default function PlayOnSheet() {
 function ThisPhoneRow() {
   const router = useRouter();
   const output = usePlayerOutput();
+  // From the store, not `useSonosOutput`: a handoff started for a new show
+  // while a room plays never passes through this sheet.
   const handoff = useSonosHandoffInFlight();
-  const onSonos = useSonosRoom().kind !== 'none' || handoff !== undefined;
+  const onOrMovingToSonos = useSonosRoom().kind !== 'none' || handoff !== undefined;
   return (
     <OutputRow
       icon={<MaterialIcons name="smartphone" size={22} color={ICON_COLOR} />}
@@ -73,7 +75,7 @@ function ThisPhoneRow() {
       subtitle={
         handoff
           ? `Tap to play here instead of ${handoff.groupName}`
-          : onSonos
+          : onOrMovingToSonos
             ? `Tap to move playback from ${output?.name}`
             : output
               ? `Music is playing on ${output.name}`
@@ -83,7 +85,7 @@ function ThisPhoneRow() {
         output ? undefined : <MaterialIcons name="check" size={20} color={RelistenBlue[300]} />
       }
       onPress={
-        onSonos
+        onOrMovingToSonos
           ? () => {
               void sonosSession.transferToPhone();
               router.back();
@@ -405,6 +407,7 @@ function CancelConnectingButton() {
         accessibilityLabel="Cancel, and play on this phone"
         className="ml-3 py-2"
         hitSlop={8}
+        // Cancelling is choosing this phone: it abandons the handoff and leaves any room.
         onPress={() => void sonosSession.transferToPhone()}
       >
         <RelistenText className="text-base text-relisten-blue-300">Cancel</RelistenText>

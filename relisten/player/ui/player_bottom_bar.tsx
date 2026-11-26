@@ -234,7 +234,7 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
                 {track?.title ?? ''}
               </RelistenText>
               {output?.connecting ? (
-                // Until the room takes the queue, Play On offers Cancel.
+                // Taps don't reach the room until it takes the queue, so say where it's going.
                 <RelistenText
                   className={subtitleClassName}
                   maxFontSizeMultiplier={metadataFontSizeLimit}

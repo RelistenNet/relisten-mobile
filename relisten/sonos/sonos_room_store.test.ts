@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/relisten/util/logging', () => ({
   log: { extend: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn() }) },
@@ -531,14 +531,13 @@ describe('SonosRoomStore', () => {
 
       const handoff = remote.handOff(request(), 'Office');
       await flush();
-      remote.abandonHandoff();
+      const quiet = remote.abandonHandoff();
 
       expect(await handoff).toEqual({ kind: 'cancelled' });
       expect(remote.getHandoffInFlight()).toBeUndefined();
       release();
-      await flush();
-      await flush();
 
+      expect(await quiet).toBe(true);
       expect(remote.getState()).toEqual({ kind: 'none' });
       expect(server.commands()).toEqual([expect.objectContaining({ action: 'pause' })]);
       expect(server.room.playbackState).toBe('PLAYBACK_STATE_PAUSED');
@@ -587,29 +586,47 @@ describe('SonosRoomStore', () => {
   });
 
   describe('how recently the room was in use', () => {
-    it('notes when it was last seen playing, and when a read gets no answer', async () => {
-      vi.useFakeTimers({ now: Date.parse('2026-11-25T12:00:00Z') });
-      try {
-        const { server, remote } = store();
-        server.room.playbackState = 'PLAYBACK_STATE_PLAYING';
-        remote.adopt('h1', 'Office');
-        await vi.advanceTimersByTimeAsync(0);
-        const playingAt = Date.now();
+    const NOW = Date.parse('2026-11-25T12:00:00Z');
 
-        server.room.playbackState = 'PLAYBACK_STATE_PAUSED';
-        vi.setSystemTime(playingAt + 60_000);
-        await remote.refresh();
-        expect(remote.getContact()).toEqual({ lastUsedAt: playingAt, lastReadFailed: false });
+    async function playingThenPaused() {
+      const setup = store();
+      setup.server.room.playbackState = 'PLAYBACK_STATE_PLAYING';
+      setup.remote.adopt('h1', 'Office');
+      await vi.advanceTimersByTimeAsync(0);
+      setup.server.room.playbackState = 'PLAYBACK_STATE_PAUSED';
+      vi.setSystemTime(NOW + 60_000);
+      await setup.remote.refresh();
+      return setup;
+    }
 
-        server.failNext('GET /v1/integrations/sonos/playback/h1', lost());
-        await remote.refresh();
-        expect(remote.getContact().lastReadFailed).toBe(true);
+    beforeEach(() => {
+      vi.useFakeTimers({ now: NOW });
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
 
-        remote.noteChosen();
-        expect(remote.getContact().lastUsedAt).toBe(playingAt + 60_000);
-      } finally {
-        vi.useRealTimers();
-      }
+    it('remembers when it last saw the room playing', async () => {
+      const { remote } = await playingThenPaused();
+
+      expect(remote.getContact()).toEqual({ lastInUseAt: NOW, lastReadFailed: false });
+    });
+
+    it('notes when the latest read got no answer', async () => {
+      const { server, remote } = await playingThenPaused();
+      server.failNext('GET /v1/integrations/sonos/playback/h1', lost());
+
+      await remote.refresh();
+
+      expect(remote.getContact().lastReadFailed).toBe(true);
+    });
+
+    it('counts the listener choosing the room as use', async () => {
+      const { remote } = await playingThenPaused();
+
+      remote.noteChosen();
+
+      expect(remote.getContact().lastInUseAt).toBe(NOW + 60_000);
     });
   });
 

@@ -100,26 +100,44 @@ export class AccountsApiTransport {
       headers.set('Authorization', `Bearer ${accessToken}`);
     }
 
-    let response: Response;
+    // The deadline covers the body too: on a bad connection it can stall after the headers.
     const deadline = timeoutMs === undefined ? undefined : withDeadline(options.signal, timeoutMs);
-
     try {
-      response = await fetch(`${this.origin}${path}`, {
-        ...options,
-        credentials: 'omit',
-        headers,
-        signal: deadline?.signal ?? options.signal,
-      });
-    } catch {
-      logger.warn(
-        `${method} ${logPath} ${deadline?.expired() ? 'timed out' : 'failed'} before response`
+      return await this.exchange<T>(
+        `${this.origin}${path}`,
+        { ...options, credentials: 'omit', headers, signal: deadline?.signal ?? options.signal },
+        {
+          describe: `${method} ${logPath}`,
+          logProgress,
+          timedOut: () => deadline?.expired() ?? false,
+        }
       );
-      throw new AccountsApiError('The account service could not be reached.', null, null, true);
     } finally {
       deadline?.clear();
     }
+  }
 
-    logProgress(`${method} ${logPath} completed status=${response.status}`);
+  /** Sends the request and reads its answer, mapping every failure to an `AccountsApiError`. */
+  private async exchange<T>(
+    url: string,
+    init: RequestInit,
+    {
+      describe,
+      logProgress,
+      timedOut,
+    }: { describe: string; logProgress: (message: string) => void; timedOut: () => boolean }
+  ): Promise<T> {
+    const lost = () =>
+      new AccountsApiError('The account service could not be reached.', null, null, true);
+    let response: Response;
+    try {
+      response = await fetch(url, init);
+    } catch {
+      logger.warn(`${describe} ${timedOut() ? 'timed out' : 'failed'} before response`);
+      throw lost();
+    }
+
+    logProgress(`${describe} completed status=${response.status}`);
 
     if (!response.ok) {
       const problem = await this.readProblem(response);
@@ -139,7 +157,11 @@ export class AccountsApiTransport {
     try {
       return (await response.json()) as T;
     } catch {
-      logger.warn(`${method} ${logPath} returned invalid JSON`);
+      if (timedOut()) {
+        logger.warn(`${describe} timed out reading its response`);
+        throw lost();
+      }
+      logger.warn(`${describe} returned invalid JSON`);
       throw new AccountsApiError(
         'The account service returned an invalid response.',
         502,
