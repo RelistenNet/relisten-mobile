@@ -522,6 +522,95 @@ describe('SonosRoomStore', () => {
 
       expect(remote.getState()).toEqual({ kind: 'none' });
     });
+
+    it('stops waiting when abandoned, and pauses the room if it takes the queue anyway', async () => {
+      const { server, remote } = store();
+      server.room.handle = HANDLE_UUID;
+      server.room.playbackState = 'PLAYBACK_STATE_PLAYING';
+      const release = server.holdNext('POST /v1/integrations/sonos/handoffs');
+
+      const handoff = remote.handOff(request(), 'Office');
+      await flush();
+      remote.abandonHandoff();
+
+      expect(await handoff).toEqual({ kind: 'cancelled' });
+      expect(remote.getHandoffInFlight()).toBeUndefined();
+      release();
+      await flush();
+      await flush();
+
+      expect(remote.getState()).toEqual({ kind: 'none' });
+      expect(server.commands()).toEqual([expect.objectContaining({ action: 'pause' })]);
+      expect(server.room.playbackState).toBe('PLAYBACK_STATE_PAUSED');
+    });
+  });
+
+  describe('a room this device left', () => {
+    it('pauses it, naming the track it plays', async () => {
+      const { server, remote } = store();
+      server.room.playbackState = 'PLAYBACK_STATE_PLAYING';
+
+      expect(await remote.pauseRoomLeftBehind('h1')).toBe(true);
+
+      expect(server.commands()).toEqual([
+        expect.objectContaining({ action: 'pause', expected_item_id: 'item-q1' }),
+      ]);
+    });
+
+    it('sends nothing to a room that is already paused', async () => {
+      const { server, remote } = store();
+
+      expect(await remote.pauseRoomLeftBehind('h1')).toBe(true);
+
+      expect(server.commands()).toEqual([]);
+    });
+
+    it('reads again and retries when the room moved to the next track meanwhile', async () => {
+      const { server, remote } = store();
+      server.room.playbackState = 'PLAYBACK_STATE_PLAYING';
+      server.failNext(
+        'POST /commands',
+        new AccountsApiError('', 409, 'sonos_playback_changed', false)
+      );
+
+      expect(await remote.pauseRoomLeftBehind('h1')).toBe(true);
+
+      expect(server.room.playbackState).toBe('PLAYBACK_STATE_PAUSED');
+    });
+
+    it('reports a room it can’t reach as maybe still playing', async () => {
+      const { server, remote } = store();
+      server.failNext('GET /v1/integrations/sonos/playback/h1', lost());
+
+      expect(await remote.pauseRoomLeftBehind('h1')).toBe(false);
+    });
+  });
+
+  describe('how recently the room was in use', () => {
+    it('notes when it was last seen playing, and when a read gets no answer', async () => {
+      vi.useFakeTimers({ now: Date.parse('2026-11-25T12:00:00Z') });
+      try {
+        const { server, remote } = store();
+        server.room.playbackState = 'PLAYBACK_STATE_PLAYING';
+        remote.adopt('h1', 'Office');
+        await vi.advanceTimersByTimeAsync(0);
+        const playingAt = Date.now();
+
+        server.room.playbackState = 'PLAYBACK_STATE_PAUSED';
+        vi.setSystemTime(playingAt + 60_000);
+        await remote.refresh();
+        expect(remote.getContact()).toEqual({ lastUsedAt: playingAt, lastReadFailed: false });
+
+        server.failNext('GET /v1/integrations/sonos/playback/h1', lost());
+        await remote.refresh();
+        expect(remote.getContact().lastReadFailed).toBe(true);
+
+        remote.noteChosen();
+        expect(remote.getContact().lastUsedAt).toBe(playingAt + 60_000);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   describe('the room this device chose', () => {

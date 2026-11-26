@@ -83,6 +83,18 @@ export interface SonosHandoffInFlight {
 }
 
 /**
+ * How recently the room this device controls was in use, for deciding where
+ * the next Play goes.
+ * - `lastUsedAt`: when this device last saw the room playing, or the listener
+ *   last chose it (`noteChosen`), in epoch milliseconds.
+ * - `lastReadFailed`: the latest read of the room didn't get an answer.
+ */
+export interface SonosRoomContact {
+  lastUsedAt: number | undefined;
+  lastReadFailed: boolean;
+}
+
+/**
  * What a command's send established: Sonos took it, it was refused, or the
  * response was lost twice and only the room can say whether it arrived.
  */
@@ -124,6 +136,10 @@ export class SonosRoomStore {
   private isCurrentScope: () => boolean = () => true;
   private state: SonosRoomState = { kind: 'none' };
   private handoffInFlight: SonosHandoffInFlight | undefined;
+  /** Stops waiting for the handoff in flight; see `abandonHandoff`. */
+  private abandonInFlight: (() => void) | undefined;
+  /** How this device last heard from the current handle; see `SonosRoomContact`. */
+  private contact: SonosRoomContact = { lastUsedAt: undefined, lastReadFailed: false };
   /**
    * A repeat mode sent but not yet confirmed by a reading taken after it. It
    * is shown over readings meanwhile, since a poll sent before the command
@@ -158,6 +174,13 @@ export class SonosRoomStore {
 
   getHandoffInFlight = () => this.handoffInFlight;
 
+  getContact = (): SonosRoomContact => this.contact;
+
+  /** The listener chose to keep playing on the room. */
+  noteChosen() {
+    this.contact = { ...this.contact, lastUsedAt: Date.now() };
+  }
+
   /**
    * The signed-in account's client, or undefined when signed out. Any change
    * of account ends remote control: the room keeps playing, and the phone
@@ -176,11 +199,14 @@ export class SonosRoomStore {
     this.account = account;
     this.handedOff = undefined;
     this.reading = undefined;
+    this.contact = { lastUsedAt: undefined, lastReadFailed: false };
     this.set({ kind: 'none' });
   }
 
   /** Takes over the handle a handoff just returned, remembers the room, and reads it. */
   adopt(handle: string, groupName: string) {
+    // The room was just chosen and is starting the queue.
+    this.contact = { lastUsedAt: Date.now(), lastReadFailed: false };
     this.set({ kind: 'checking', handle, groupName });
     this.remember(handle);
     void this.refresh();
@@ -191,6 +217,10 @@ export class SonosRoomStore {
    * that room. One handoff runs at a time: a second, chosen while the first is
    * still settling, is refused before anything is sent, so the queue never
    * ends up playing in two rooms.
+   *
+   * `abandonHandoff` resolves it at once as `cancelled`. The handoff itself
+   * runs on, since the server may already be loading the room; if the room
+   * takes the queue, it is paused rather than controlled.
    */
   async handOff(request: SonosHandoffRequest, groupName: string): Promise<SonosHandoffOutcome> {
     const scope = this.accountScope();
@@ -205,27 +235,108 @@ export class SonosRoomStore {
       };
     }
 
-    this.handoffInFlight = { groupId: request.group_id, groupName };
+    const flight: SonosHandoffInFlight = { groupId: request.group_id, groupName };
+    const abandoned = new Promise<SonosHandoffOutcome>((resolve) => {
+      this.abandonInFlight = () => resolve({ kind: 'cancelled' });
+    });
+    this.handoffInFlight = flight;
     this.notify();
+    return Promise.race([this.runHandoff(scope, request, flight), abandoned]);
+  }
+
+  /** Stops waiting for the handoff in flight, if any, so the phone can play. */
+  abandonHandoff() {
+    const abandon = this.abandonInFlight;
+    if (abandon) {
+      this.endHandoff();
+      abandon();
+    }
+  }
+
+  /** Follows a handoff to its end. One abandoned meanwhile is paused if it lands. */
+  private async runHandoff(
+    scope: AccountScope,
+    request: SonosHandoffRequest,
+    flight: SonosHandoffInFlight
+  ): Promise<SonosHandoffOutcome> {
+    const current = () => this.handoffInFlight === flight;
     try {
       const outcome = await runSonosHandoff(scope.api, request, scope.stillCurrent, {
         wait: this.timing.wait,
       });
       // The runner reports a handoff that settled after the account changed as uncertain.
-      if (outcome.kind === 'playing') {
+      if (outcome.kind === 'playing' && !current()) {
+        void this.pauseRoomLeftBehind(outcome.handle);
+      } else if (outcome.kind === 'playing') {
         // Recorded before adopting: adopting routes the player at once, and the
         // session's first read of the new room compares against this order.
         this.handedOff = {
           handle: outcome.handle,
           occurrenceIds: request.occurrences.map((occurrence) => occurrence.occurrence_id),
         };
-        this.adopt(outcome.handle, groupName);
+        this.adopt(outcome.handle, flight.groupName);
       }
       return outcome;
     } finally {
-      this.handoffInFlight = undefined;
-      this.notify();
+      if (current()) {
+        this.endHandoff();
+      }
     }
+  }
+
+  private endHandoff() {
+    this.handoffInFlight = undefined;
+    this.abandonInFlight = undefined;
+    this.notify();
+  }
+
+  /**
+   * Pauses a room this device no longer controls, such as the one it just
+   * moved playback away from. It reads the room first, since a pause names
+   * the track it is meant for; if the room moved on meanwhile and refuses,
+   * it reads and tries once more. Resolves whether the room is known to be
+   * paused, stopped or no longer playing this queue.
+   */
+  async pauseRoomLeftBehind(handle: string): Promise<boolean> {
+    const scope = this.accountScope();
+    if (!scope) {
+      return false;
+    }
+    const room: RoomScope = { ...scope, handle };
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      if (attempt > 0) {
+        await this.timing.wait(this.timing.confirmIntervalMs);
+      }
+      let playback: SonosPlayback;
+      try {
+        playback = await fetchSonosPlayback(room.api, handle);
+      } catch {
+        return false;
+      }
+      if (!isSonosPlaybackLive(playback)) {
+        return true;
+      }
+      const itemId = playback.occurrence?.itemId;
+      if (!itemId) {
+        continue;
+      }
+      if (!isSonosPlaying(playback)) {
+        return true;
+      }
+
+      const sent = await this.send(
+        room,
+        transportBody({ action: 'pause' }, randomUUID(), {
+          itemId,
+          queueVersion: playback.queueVersion,
+        })
+      );
+      if (sent.kind !== 'refused') {
+        return sent.kind === 'accepted';
+      }
+    }
+    return false;
   }
 
   /**
@@ -317,8 +428,15 @@ export class SonosRoomStore {
   private async read(room: RoomScope): Promise<SonosPlayback | undefined> {
     try {
       const playback = await fetchSonosPlayback(room.api, room.handle);
-      return room.stillCurrent() ? this.apply(playback) : undefined;
+      if (!room.stillCurrent()) {
+        return undefined;
+      }
+      this.contact = { ...this.contact, lastReadFailed: false };
+      return this.apply(playback);
     } catch (error) {
+      if (room.stillCurrent()) {
+        this.contact = { ...this.contact, lastReadFailed: true };
+      }
       const gone = isSonosUnavailable(error) || needsSonosReconnect(error);
       if (gone && room.stillCurrent()) {
         this.endPlayback({
@@ -625,6 +743,9 @@ export class SonosRoomStore {
       return undefined;
     }
 
+    if (isSonosPlaying(playback)) {
+      this.contact = { ...this.contact, lastUsedAt: Date.now() };
+    }
     if (current.kind !== 'active' || current.playback.handle !== playback.handle) {
       const volume = this.volumes.get(playback.groupId);
       this.set({ kind: 'active', playback, pending, volume });
@@ -663,6 +784,7 @@ export class SonosRoomStore {
   private endPlayback(ended: SonosEnding | undefined) {
     this.remember(undefined);
     this.reading = undefined;
+    this.contact = { lastUsedAt: undefined, lastReadFailed: false };
     this.set(ended === undefined ? { kind: 'none' } : { kind: 'none', ended });
   }
 

@@ -56,13 +56,14 @@ export default function PlayOnSheet() {
 }
 
 /**
- * This phone, checked while it is where music plays. While a Sonos room
- * plays, tapping it moves playback back here at the same track and position.
+ * This phone, checked while it is where music plays. While this device
+ * controls a Sonos room, tapping it moves playback back here, whether or not
+ * the room can be reached (`SonosSession.transferToPhone`).
  */
 function ThisPhoneRow() {
   const router = useRouter();
   const outputRoute = usePlayerOutput()?.name;
-  const sonosPlaying = useSonosRoom().kind === 'active';
+  const sonosPlaying = useSonosRoom().kind !== 'none';
   const here = !outputRoute;
   return (
     <OutputRow
@@ -264,12 +265,15 @@ function roomStatus(
   if (handoff?.phase === 'connecting') {
     return { text: 'Connecting…', trailing: <Spinner /> };
   }
-  if (handoff?.phase === 'done' && handoff.outcome.kind !== 'playing') {
-    return handoff.outcome.kind === 'refused'
-      ? { text: handoff.outcome.message, tone: 'error' }
-      : { text: HANDOFF_UNCONFIRMED_MESSAGE, tone: 'error' };
+  // A cancelled handoff shows nothing: the listener chose the phone.
+  const outcome = handoff?.phase === 'done' ? handoff.outcome : undefined;
+  if (outcome?.kind === 'refused') {
+    return { text: outcome.message, tone: 'error' };
   }
-  if (active || handoff?.phase === 'done') {
+  if (outcome?.kind === 'uncertain') {
+    return { text: HANDOFF_UNCONFIRMED_MESSAGE, tone: 'error' };
+  }
+  if (active || outcome?.kind === 'playing') {
     return {
       text: 'Playing your queue',
       trailing: <MaterialIcons name="check" size={20} color={RelistenBlue[300]} />,

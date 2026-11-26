@@ -20,7 +20,12 @@ import {
   SONOS_CALLBACK_URL,
   type SonosGroup,
 } from './sonos_api';
-import { handoffRequest, phoneMayResumeAfter, type SonosHandoffOutcome } from './sonos_handoff';
+import {
+  handoffNeedsReconnect,
+  handoffRequest,
+  phoneMayResumeAfter,
+  type SonosHandoffOutcome,
+} from './sonos_handoff';
 import { sonosRoom, useSonosHandoffInFlight } from './sonos_room_store';
 
 /**
@@ -127,9 +132,9 @@ export function useSonosOutput() {
   /**
    * Moves the queue to `group`. Whatever plays now, the phone or another
    * room, pauses only at this explicit choice. It resumes if Sonos refuses
-   * before taking over, and stays paused when the room plays or the outcome
-   * is uncertain, so music never plays in two places. Nothing happens while
-   * another handoff is still settling.
+   * before taking over or the listener cancels, and stays paused when the
+   * room plays or the outcome is uncertain, so music never plays in two
+   * places. Nothing happens while another handoff is still settling.
    */
   const playOn = useCallback(
     async (group: SonosGroup) => {
@@ -166,7 +171,7 @@ export function useSonosOutput() {
       if (wasPlaying && phoneMayResumeAfter(outcome)) {
         player.resume();
       }
-      if (outcome.kind !== 'playing' && outcome.reconnect) {
+      if (handoffNeedsReconnect(outcome)) {
         setConnection({ kind: 'notLinked' });
       } else if (outcome.kind === 'uncertain' && mounted.current) {
         void refresh();
