@@ -1138,6 +1138,28 @@ describe('SonosSession', () => {
       expect(messages()).toEqual([]);
     });
 
+    it('waits on the phone, without playing, when the phone goes offline', async () => {
+      room.plays(tracks[1].identifier, { positionMillis: 42000 });
+      await settle();
+
+      session.leaveRoomOffline();
+      await settle();
+
+      expect(room.release).toHaveBeenCalled();
+      expect(room.command).not.toHaveBeenCalled();
+      expect(playbackSource.lastState()).toBe(PlaybackSource.Native);
+      expect(currentTrackIdentifier.lastState()).toBe(tracks[1].identifier);
+      expect(mocks.native.play).not.toHaveBeenCalled();
+      expect(messages()).toEqual(['You’re offline, so playback moved from Office to this phone.']);
+    });
+
+    it('does nothing offline when no room is playing', () => {
+      session.leaveRoomOffline();
+
+      expect(room.release).not.toHaveBeenCalled();
+      expect(messages()).toEqual([]);
+    });
+
     it('says only that the room ended when it ends during the move', async () => {
       room.plays(tracks[1].identifier);
       await settle();

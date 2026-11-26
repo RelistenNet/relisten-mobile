@@ -906,6 +906,31 @@ export class SonosSession {
     await this.playOnPhone(stoppedAt ?? this.phoneSelection(), play);
   }
 
+  /**
+   * Lets go of the room when the phone can't reach it at all: no network, or
+   * offline mode. The room is left as it was, since nothing can reach it,
+   * and the phone waits at the track and position it shows. It plays only if
+   * the listener's Play was on its way to the room: a phone that lost its
+   * connection mustn't start playing on its own.
+   */
+  leaveRoomOffline() {
+    const room = this.store.getState();
+    this.store.abandonHandoff();
+    if (!this.active) {
+      return;
+    }
+
+    this.unrouteFromRoom();
+    this.store.release();
+    showToast(
+      `You’re offline, so playback moved from ${sonosRoomName(room) ?? 'Sonos'} to this phone.`,
+      {
+        tone: 'warning',
+      }
+    );
+    void this.playOnPhone(this.phoneSelection(), this.playsInFlight > 0);
+  }
+
   /** Pauses the room the phone just left, telling the listener if it may still be playing. */
   private async pauseRoomLeftBehind(handle: string, roomName: string | undefined) {
     if (!(await this.store.pauseRoomLeftBehind(handle))) {

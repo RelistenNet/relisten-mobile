@@ -33,7 +33,8 @@ const playingHandle = () => {
  * whenever the app returns, and re-reads it every few seconds while a room
  * plays and the app is in front. It reads a newly playing room's volume
  * straight away, so Play On shows it on opening. Signing out ends remote
- * control. In offline mode, or without a network, it reads nothing.
+ * control. In offline mode, or without a network, it reads nothing, and
+ * playback moves back to the phone.
  */
 export function SonosCoordinator() {
   const scope = useAccountScope();
@@ -77,6 +78,12 @@ export function SonosCoordinator() {
     // try runs before the account's token is ready and fails, and a new
     // account restores its own room.
   }, [api, online, scope, signedIn]);
+
+  useEffect(() => {
+    if (!online) {
+      sonosSession.leaveRoomOffline();
+    }
+  }, [online]);
 
   useEffect(() => {
     if (!active || !online) {
