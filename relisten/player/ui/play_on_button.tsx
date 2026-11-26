@@ -22,7 +22,13 @@ export function PlayOnButton({
   return (
     <TouchableOpacity
       accessibilityRole="button"
-      accessibilityLabel={output ? `Play on, playing through ${output.name}` : 'Play on'}
+      accessibilityLabel={
+        output?.connecting
+          ? `Play on, connecting to ${output.name}`
+          : output
+            ? `Play on, playing through ${output.name}`
+            : 'Play on'
+      }
       className="h-11 w-11 items-center justify-center"
       // Opens over the full player, like Audio Adjustments, so the listener stays in it.
       onPress={() => router.push('/relisten/play-on')}

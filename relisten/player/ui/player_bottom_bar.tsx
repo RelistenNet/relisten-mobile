@@ -29,6 +29,7 @@ import { ScrubberRow } from './player_scrubber';
 import { playerQueueDate, playerTrackAccessibilityLabel } from './player_display_helpers';
 import * as Progress from 'react-native-progress';
 import { PlayOnButton } from '@/relisten/player/ui/play_on_button';
+import { playerOutputLabel, usePlayerOutput } from '@/relisten/player/ui/player_output_route';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import {
@@ -104,6 +105,7 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
   const currentTrack = useRelistenPlayerCurrentTrack();
   const playbackState = useRelistenPlayerPlaybackState();
   const player = useRelistenPlayer();
+  const output = usePlayerOutput();
   const { height } = useWindowDimensions();
   const {
     beginInteractivePresentation,
@@ -231,24 +233,35 @@ function PlayerBottomBarContents({ placementBackend }: PlayerBottomBarContentsPr
               >
                 {track?.title ?? ''}
               </RelistenText>
-              {/* Reserve space for the date even when the artist name is long. */}
-              <View className="min-w-0 flex-row items-baseline">
+              {output?.connecting ? (
+                // Until the room takes the queue, Play On offers Cancel.
                 <RelistenText
-                  className={`${subtitleClassName} min-w-0 shrink`}
+                  className={subtitleClassName}
                   maxFontSizeMultiplier={metadataFontSizeLimit}
                   numberOfLines={1}
                 >
-                  {track.artist.name}
+                  {playerOutputLabel(output)}
                 </RelistenText>
-                <RelistenText
-                  className={`${subtitleClassName} shrink-0`}
-                  maxFontSizeMultiplier={metadataFontSizeLimit}
-                  numberOfLines={1}
-                >
-                  {' · '}
-                  {playerQueueDate(track.show.displayDate)}
-                </RelistenText>
-              </View>
+              ) : (
+                /* Reserve space for the date even when the artist name is long. */
+                <View className="min-w-0 flex-row items-baseline">
+                  <RelistenText
+                    className={`${subtitleClassName} min-w-0 shrink`}
+                    maxFontSizeMultiplier={metadataFontSizeLimit}
+                    numberOfLines={1}
+                  >
+                    {track.artist.name}
+                  </RelistenText>
+                  <RelistenText
+                    className={`${subtitleClassName} shrink-0`}
+                    maxFontSizeMultiplier={metadataFontSizeLimit}
+                    numberOfLines={1}
+                  >
+                    {' · '}
+                    {playerQueueDate(track.show.displayDate)}
+                  </RelistenText>
+                </View>
+              )}
             </Flex>
           </Animated.View>
         </GestureDetector>
