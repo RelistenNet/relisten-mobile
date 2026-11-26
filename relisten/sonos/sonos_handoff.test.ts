@@ -10,6 +10,7 @@ vi.mock('expo-crypto', () => ({
 
 import { AccountsApiError } from '@/relisten/accounts/api/accounts_api_client';
 import { handoffRequest, phoneMayResumeAfter, runSonosHandoff } from './sonos_handoff';
+import { SONOS_REQUEST_TIMEOUT_MS } from './sonos_api';
 
 const UUID_A = '7f1d1d55-0000-4000-8000-000000000001';
 const UUID_B = '7f1d1d55-0000-4000-8000-000000000002';
@@ -105,7 +106,9 @@ describe('runSonosHandoff', () => {
     await expect(runSonosHandoff(client as never, request, always, timing)).resolves.toMatchObject({
       kind: 'playing',
     });
-    expect(client.request).toHaveBeenLastCalledWith('/v1/integrations/sonos/handoffs/req-1');
+    expect(client.request).toHaveBeenLastCalledWith('/v1/integrations/sonos/handoffs/req-1', {
+      timeoutMs: SONOS_REQUEST_TIMEOUT_MS,
+    });
   });
 
   it('leaves the outcome uncertain when the room never confirms', async () => {
@@ -156,7 +159,9 @@ describe('runSonosHandoff', () => {
     await expect(runSonosHandoff(client as never, request, always, timing)).resolves.toMatchObject({
       kind: 'playing',
     });
-    expect(client.request).toHaveBeenLastCalledWith('/v1/integrations/sonos/handoffs/req-1');
+    expect(client.request).toHaveBeenLastCalledWith('/v1/integrations/sonos/handoffs/req-1', {
+      timeoutMs: SONOS_REQUEST_TIMEOUT_MS,
+    });
   });
 
   it('keeps local playback paused when a lost submission is followed by a missing receipt', async () => {

@@ -45,6 +45,45 @@ describe('AccountsApiTransport', () => {
     const headers = new Headers(init.headers);
     expect(headers.get('Authorization')).toBe('Bearer access-token');
   });
+
+  /** A fetch that never answers, ending only when its signal aborts, as a dead connection does. */
+  function hangingFetch() {
+    return vi.fn(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((_resolve, reject) =>
+          init.signal?.addEventListener('abort', () => reject(new Error('aborted')))
+        )
+    );
+  }
+
+  it('fails a request that outlasts its time limit as a lost response', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('fetch', hangingFetch());
+    const transport = new AccountsApiTransport('https://accounts.relisten.net');
+
+    const request = transport.request('/v1/integrations/sonos/groups', 'token', {
+      timeoutMs: 8000,
+    });
+    const failure = expect(request).rejects.toMatchObject({ status: null, retryable: true });
+    await vi.advanceTimersByTimeAsync(8000);
+
+    await failure;
+    vi.useRealTimers();
+  });
+
+  it('still stops when the caller cancels a request that has a time limit', async () => {
+    vi.stubGlobal('fetch', hangingFetch());
+    const transport = new AccountsApiTransport('https://accounts.relisten.net');
+    const controller = new AbortController();
+
+    const request = transport.request('/v1/search', 'token', {
+      signal: controller.signal,
+      timeoutMs: 8000,
+    });
+    controller.abort();
+
+    await expect(request).rejects.toBeInstanceOf(AccountsApiError);
+  });
 });
 
 describe('AuthorizedAccountsApiClient', () => {

@@ -3,6 +3,7 @@
 // on a timer while a room plays.
 
 import type { AuthorizedAccountsApiClient } from '@/relisten/accounts/api/accounts_api_client';
+import { SONOS_REQUEST_TIMEOUT_MS } from './sonos_api';
 import {
   parsePlayback,
   type SonosPlayback,
@@ -20,7 +21,12 @@ export async function fetchSonosPlayback(
   api: AuthorizedAccountsApiClient,
   handle: string
 ): Promise<SonosPlayback> {
-  const playback = parsePlayback(await api.request<unknown>(handlePath(handle), { routine: true }));
+  const playback = parsePlayback(
+    await api.request<unknown>(handlePath(handle), {
+      routine: true,
+      timeoutMs: SONOS_REQUEST_TIMEOUT_MS,
+    })
+  );
   if (!playback) {
     throw new Error('The Sonos playback response is invalid.');
   }
@@ -39,6 +45,7 @@ export function sendSonosCommand(
 ): Promise<unknown> {
   return api.request<unknown>(`${handlePath(handle)}/commands`, {
     method: 'POST',
+    timeoutMs: SONOS_REQUEST_TIMEOUT_MS,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request),
   });
@@ -50,6 +57,7 @@ export async function fetchSonosQueue(
 ): Promise<SonosQueue> {
   const body = await api.request<Record<string, unknown> | null>(`${handlePath(handle)}/queue`, {
     routine: true,
+    timeoutMs: SONOS_REQUEST_TIMEOUT_MS,
   });
   const rows = Array.isArray(body?.occurrences) ? body.occurrences : undefined;
   if (typeof body?.queue_version !== 'number' || !rows) {
@@ -85,6 +93,7 @@ export async function saveSonosQueue(
 ): Promise<number> {
   const body = await api.request<Record<string, unknown> | null>(`${handlePath(handle)}/queue`, {
     method: 'PUT',
+    timeoutMs: SONOS_REQUEST_TIMEOUT_MS,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       command_id: edit.commandId,
@@ -105,6 +114,7 @@ export async function fetchSonosVolume(
 ): Promise<SonosVolume> {
   const body = await api.request<Record<string, unknown> | null>(`${handlePath(handle)}/volume`, {
     routine: true,
+    timeoutMs: SONOS_REQUEST_TIMEOUT_MS,
   });
   if (typeof body?.volume !== 'number') {
     throw new Error('The Sonos volume response is invalid.');

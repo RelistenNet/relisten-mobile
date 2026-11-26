@@ -27,8 +27,16 @@ export class AccountsApiError extends Error {
  * a poll; its progress is logged at debug level so it doesn't crowd crash
  * reports' breadcrumbs. A request that never reaches the server is logged as
  * a warning either way.
+ *
+ * `timeoutMs` gives up on a request that hasn't answered in time. It fails as
+ * a lost response does (retryable, no status), since the server may still
+ * have received it. Without it, a request on a bad connection can wait as
+ * long as the system allows, about a minute on iOS.
  */
-export type AccountRequestOptions = RequestInit & { routine?: boolean };
+export type AccountRequestOptions = RequestInit & {
+  routine?: boolean;
+  timeoutMs?: number;
+};
 
 export interface AccountTokenSource {
   getAccessToken(capture: AccountScopeCapture, forceRefresh?: boolean): Promise<string>;
@@ -36,6 +44,29 @@ export interface AccountTokenSource {
 
 function isRetryableStatus(status: number) {
   return status === 408 || status === 429 || status >= 500;
+}
+
+/** A signal that aborts when `signal` does or `timeoutMs` passes, whichever comes first. */
+function withDeadline(signal: AbortSignal | null | undefined, timeoutMs: number) {
+  const controller = new AbortController();
+  let expired = false;
+  const abort = () => controller.abort();
+  const timer = setTimeout(() => {
+    expired = true;
+    abort();
+  }, timeoutMs);
+  signal?.addEventListener('abort', abort);
+  if (signal?.aborted) {
+    abort();
+  }
+  return {
+    signal: controller.signal,
+    expired: () => expired,
+    clear: () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', abort);
+    },
+  };
 }
 
 function assertRelativeAccountPath(path: string) {
@@ -55,7 +86,7 @@ export class AccountsApiTransport {
   async request<T>(
     path: string,
     accessToken: string | null,
-    { routine = false, ...options }: AccountRequestOptions
+    { routine = false, timeoutMs, ...options }: AccountRequestOptions
   ): Promise<T> {
     assertRelativeAccountPath(path);
     const method = options.method ?? 'GET';
@@ -70,16 +101,22 @@ export class AccountsApiTransport {
     }
 
     let response: Response;
+    const deadline = timeoutMs === undefined ? undefined : withDeadline(options.signal, timeoutMs);
 
     try {
       response = await fetch(`${this.origin}${path}`, {
         ...options,
         credentials: 'omit',
         headers,
+        signal: deadline?.signal ?? options.signal,
       });
     } catch {
-      logger.warn(`${method} ${logPath} failed before response`);
+      logger.warn(
+        `${method} ${logPath} ${deadline?.expired() ? 'timed out' : 'failed'} before response`
+      );
       throw new AccountsApiError('The account service could not be reached.', null, null, true);
+    } finally {
+      deadline?.clear();
     }
 
     logProgress(`${method} ${logPath} completed status=${response.status}`);

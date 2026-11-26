@@ -12,6 +12,14 @@ import type { wireOccurrences } from './sonos_playback';
 
 const BASE = '/v1/integrations/sonos';
 
+/**
+ * How long a Sonos request may wait for an answer. Without a limit, a request
+ * on a bad connection (a parking garage, say) waits about a minute, and the
+ * phone can't tell the room is out of reach until it gives up. Each call
+ * already treats a lost response as "maybe arrived".
+ */
+export const SONOS_REQUEST_TIMEOUT_MS = 8000;
+
 /** A Sonos group: one room, or rooms playing together. */
 export interface SonosGroup {
   householdId: string;
@@ -65,7 +73,9 @@ export function isSonosUnavailable(error: unknown): boolean {
 }
 
 export async function fetchSonosLinked(api: AuthorizedAccountsApiClient): Promise<boolean> {
-  const body = await api.request<{ linked?: unknown }>(`${BASE}/connection`);
+  const body = await api.request<{ linked?: unknown }>(`${BASE}/connection`, {
+    timeoutMs: SONOS_REQUEST_TIMEOUT_MS,
+  });
   return body?.linked === true;
 }
 
@@ -73,9 +83,7 @@ export async function fetchSonosLinked(api: AuthorizedAccountsApiClient): Promis
 export async function beginSonosConnect(api: AuthorizedAccountsApiClient): Promise<string> {
   const body = await api.request<{ authorization_url?: unknown }>(
     `${BASE}/connect?return_to=mobile`,
-    {
-      method: 'POST',
-    }
+    { method: 'POST', timeoutMs: SONOS_REQUEST_TIMEOUT_MS }
   );
   if (typeof body?.authorization_url !== 'string') {
     throw new Error('The Sonos sign-in link is missing.');
@@ -103,7 +111,9 @@ export function groupSonosHouseholds(groups: readonly SonosGroup[]): SonosGroup[
 }
 
 export async function fetchSonosGroups(api: AuthorizedAccountsApiClient): Promise<SonosGroup[]> {
-  const body = await api.request<unknown>(`${BASE}/groups`);
+  const body = await api.request<unknown>(`${BASE}/groups`, {
+    timeoutMs: SONOS_REQUEST_TIMEOUT_MS,
+  });
   if (!Array.isArray(body)) {
     throw new Error('The Sonos rooms response is invalid.');
   }
@@ -124,6 +134,7 @@ export async function startSonosHandoff(
   return parseReceipt(
     await api.request<unknown>(`${BASE}/handoffs`, {
       method: 'POST',
+      timeoutMs: SONOS_REQUEST_TIMEOUT_MS,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request),
     }),
@@ -136,7 +147,9 @@ export async function fetchSonosHandoff(
   requestId: string
 ): Promise<SonosHandoffReceipt> {
   return parseReceipt(
-    await api.request<unknown>(`${BASE}/handoffs/${encodeURIComponent(requestId)}`),
+    await api.request<unknown>(`${BASE}/handoffs/${encodeURIComponent(requestId)}`, {
+      timeoutMs: SONOS_REQUEST_TIMEOUT_MS,
+    }),
     requestId
   );
 }
