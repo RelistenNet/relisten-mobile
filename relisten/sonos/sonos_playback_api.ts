@@ -3,7 +3,7 @@
 // on a timer while a room plays.
 
 import type { AuthorizedAccountsApiClient } from '@/relisten/accounts/api/accounts_api_client';
-import { SONOS_REQUEST_TIMEOUT_MS } from './sonos_api';
+import { sonosRequest } from './sonos_api';
 import {
   parsePlayback,
   type SonosPlayback,
@@ -22,10 +22,7 @@ export async function fetchSonosPlayback(
   handle: string
 ): Promise<SonosPlayback> {
   const playback = parsePlayback(
-    await api.request<unknown>(handlePath(handle), {
-      routine: true,
-      timeoutMs: SONOS_REQUEST_TIMEOUT_MS,
-    })
+    await sonosRequest<unknown>(api, handlePath(handle), { routine: true })
   );
   if (!playback) {
     throw new Error('The Sonos playback response is invalid.');
@@ -43,9 +40,8 @@ export function sendSonosCommand(
   handle: string,
   request: Record<string, unknown>
 ): Promise<unknown> {
-  return api.request<unknown>(`${handlePath(handle)}/commands`, {
+  return sonosRequest<unknown>(api, `${handlePath(handle)}/commands`, {
     method: 'POST',
-    timeoutMs: SONOS_REQUEST_TIMEOUT_MS,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request),
   });
@@ -55,10 +51,11 @@ export async function fetchSonosQueue(
   api: AuthorizedAccountsApiClient,
   handle: string
 ): Promise<SonosQueue> {
-  const body = await api.request<Record<string, unknown> | null>(`${handlePath(handle)}/queue`, {
-    routine: true,
-    timeoutMs: SONOS_REQUEST_TIMEOUT_MS,
-  });
+  const body = await sonosRequest<Record<string, unknown> | null>(
+    api,
+    `${handlePath(handle)}/queue`,
+    { routine: true }
+  );
   const rows = Array.isArray(body?.occurrences) ? body.occurrences : undefined;
   if (typeof body?.queue_version !== 'number' || !rows) {
     throw new Error('The Sonos queue response is invalid.');
@@ -91,17 +88,20 @@ export async function saveSonosQueue(
     entries: readonly SonosQueueEntry[];
   }
 ): Promise<number> {
-  const body = await api.request<Record<string, unknown> | null>(`${handlePath(handle)}/queue`, {
-    method: 'PUT',
-    timeoutMs: SONOS_REQUEST_TIMEOUT_MS,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      command_id: edit.commandId,
-      expected_version: edit.expectedVersion,
-      expected_item_id: edit.expectedItemId,
-      occurrences: wireOccurrences(edit.entries),
-    }),
-  });
+  const body = await sonosRequest<Record<string, unknown> | null>(
+    api,
+    `${handlePath(handle)}/queue`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        command_id: edit.commandId,
+        expected_version: edit.expectedVersion,
+        expected_item_id: edit.expectedItemId,
+        occurrences: wireOccurrences(edit.entries),
+      }),
+    }
+  );
   if (typeof body?.queue_version !== 'number') {
     throw new Error('The Sonos queue edit response is invalid.');
   }
@@ -112,10 +112,11 @@ export async function fetchSonosVolume(
   api: AuthorizedAccountsApiClient,
   handle: string
 ): Promise<SonosVolume> {
-  const body = await api.request<Record<string, unknown> | null>(`${handlePath(handle)}/volume`, {
-    routine: true,
-    timeoutMs: SONOS_REQUEST_TIMEOUT_MS,
-  });
+  const body = await sonosRequest<Record<string, unknown> | null>(
+    api,
+    `${handlePath(handle)}/volume`,
+    { routine: true }
+  );
   if (typeof body?.volume !== 'number') {
     throw new Error('The Sonos volume response is invalid.');
   }

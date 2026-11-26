@@ -21,8 +21,11 @@ import { type QueueOccurrence, sonosQueueEntry, wireOccurrences } from './sonos_
  * - `refused`: nothing reached the room, so the phone resumes what it was doing.
  * - `uncertain`: the room may or may not have taken over. The phone stays
  *   paused rather than risk playing in two places.
- * - `cancelled`: the listener stopped waiting and chose the phone. If the room
- *   takes the queue anyway, the store pauses it (`SonosRoomStore.handOff`).
+ * - `cancelled`: the listener chose the phone, or the phone went offline.
+ *   Whoever cancelled decides whether the phone plays
+ *   (`SonosSession.transferToPhone`, `leaveRoomOffline`).
+ *   If the room takes the queue anyway, the store pauses it
+ *   (`SonosRoomStore.abandonHandoff`).
  * `reconnect` means the account's Sonos link has to be made again.
  */
 export type SonosHandoffOutcome =
@@ -32,13 +35,13 @@ export type SonosHandoffOutcome =
   | { kind: 'cancelled' };
 
 /**
- * Whether the phone may play again after a handoff. A refusal proves the room
- * never took the queue, and a cancelled handoff is paused if it lands; after
+ * Whether the handoff's starter may resume the phone. Only a refusal proves
+ * the room never took the queue; after a cancel, the canceller decides; after
  * any other outcome the phone stays paused, so the queue never plays in two
  * places.
  */
 export function phoneMayResumeAfter(outcome: SonosHandoffOutcome): boolean {
-  return outcome.kind === 'refused' || outcome.kind === 'cancelled';
+  return outcome.kind === 'refused';
 }
 
 /** Whether the outcome means the account's Sonos link has to be made again. */

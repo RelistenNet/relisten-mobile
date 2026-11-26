@@ -39,9 +39,13 @@ function store(rememberedRoom?: string) {
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
+/** The fake service's one room. */
+const OFFICE = { groupId: 'g1', groupName: 'Office' };
+const handingOff = (groupName: string) => ({ groupName, wasPlaying: false });
+
 async function adopted(rememberedRoom?: string) {
   const setup = store(rememberedRoom);
-  setup.remote.adopt('h1', 'Office');
+  setup.remote.adopt('h1', OFFICE);
   await flush();
   return setup;
 }
@@ -56,7 +60,7 @@ describe('SonosRoomStore', () => {
     it('shows the room once an adopted handle is read', async () => {
       const { remote } = store();
 
-      remote.adopt('h1', 'Office');
+      remote.adopt('h1', OFFICE);
       expect(remote.getState().kind).toBe('checking');
       await flush();
 
@@ -67,9 +71,9 @@ describe('SonosRoomStore', () => {
       const { server, remote } = store();
       const releaseFirst = server.holdNext('GET /v1/integrations/sonos/playback/h1');
 
-      remote.adopt('h1', 'Office');
+      remote.adopt('h1', OFFICE);
       server.room.handle = 'h2';
-      remote.adopt('h2', 'Office');
+      remote.adopt('h2', OFFICE);
       await flush();
       releaseFirst();
       await flush();
@@ -94,7 +98,7 @@ describe('SonosRoomStore', () => {
     it('names no queue version on a jump when the room never reported one', async () => {
       const { server, remote } = store();
       server.reportsQueueVersion = false;
-      remote.adopt('h1', 'Office');
+      remote.adopt('h1', OFFICE);
       await flush();
       await remote.refresh();
 
@@ -149,7 +153,7 @@ describe('SonosRoomStore', () => {
 
     it('names the room whether or not it has been confirmed yet', async () => {
       const { server, remote } = store();
-      remote.adopt('h1', 'Office');
+      remote.adopt('h1', OFFICE);
       expect(sonosRoomName(remote.getState())).toBe('Office');
 
       await flush();
@@ -368,7 +372,7 @@ describe('SonosRoomStore', () => {
       await remote.refreshVolume();
 
       server.room.handle = 'h2';
-      remote.adopt('h2', 'Office');
+      remote.adopt('h2', OFFICE);
       await flush();
 
       expect(shown(remote)?.playback.handle).toBe('h2');
@@ -438,7 +442,7 @@ describe('SonosRoomStore', () => {
 
     it('reports no mode while the room is unconfirmed, so controls rest', () => {
       const { remote } = store();
-      remote.adopt('h1', 'Office');
+      remote.adopt('h1', OFFICE);
 
       expect(roomRepeatOf(remote.getState())).toEqual({
         repeatMode: null,
@@ -486,9 +490,9 @@ describe('SonosRoomStore', () => {
       const { server, remote } = store();
       const release = server.holdNext('POST /v1/integrations/sonos/handoffs');
 
-      const first = remote.handOff(request(), 'Office');
+      const first = remote.handOff(request(), handingOff('Office'));
       await flush();
-      const second = await remote.handOff({ ...request(), group_id: 'g2' }, 'Kitchen');
+      const second = await remote.handOff({ ...request(), group_id: 'g2' }, handingOff('Kitchen'));
       release();
       await first;
 
@@ -503,7 +507,7 @@ describe('SonosRoomStore', () => {
     it('takes over the room once it confirms, remembering the order it sent', async () => {
       const { remote } = store();
 
-      const outcome = await remote.handOff(request(), 'Office');
+      const outcome = await remote.handOff(request(), handingOff('Office'));
 
       expect(outcome).toEqual({ kind: 'playing', handle: HANDLE_UUID });
       expect(remote.takeHandedOffOrder(HANDLE_UUID)).toEqual(['q1']);
@@ -514,7 +518,7 @@ describe('SonosRoomStore', () => {
       const { server, remote, switchAccount } = store();
       const release = server.holdNext('POST /v1/integrations/sonos/handoffs');
 
-      const handoff = remote.handOff(request(), 'Office');
+      const handoff = remote.handOff(request(), handingOff('Office'));
       await flush();
       switchAccount();
       release();
@@ -529,18 +533,53 @@ describe('SonosRoomStore', () => {
       server.room.playbackState = 'PLAYBACK_STATE_PLAYING';
       const release = server.holdNext('POST /v1/integrations/sonos/handoffs');
 
-      const handoff = remote.handOff(request(), 'Office');
+      const handoff = remote.handOff(request(), handingOff('Office'));
       await flush();
-      const quiet = remote.abandonHandoff();
+      const left = remote.abandonHandoff();
 
       expect(await handoff).toEqual({ kind: 'cancelled' });
       expect(remote.getHandoffInFlight()).toBeUndefined();
       release();
 
-      expect(await quiet).toBe(true);
+      expect(await left).toBe('quiet');
       expect(remote.getState()).toEqual({ kind: 'none' });
       expect(server.commands()).toEqual([expect.objectContaining({ action: 'pause' })]);
       expect(server.room.playbackState).toBe('PLAYBACK_STATE_PAUSED');
+    });
+
+    it('leaves the room playing when the listener chooses it again before the abandoned handoff lands', async () => {
+      const { server, remote } = store();
+      server.room.handle = HANDLE_UUID;
+      server.room.playbackState = 'PLAYBACK_STATE_PLAYING';
+      const releaseFirst = server.holdNext('POST /v1/integrations/sonos/handoffs');
+
+      const first = remote.handOff(request(), handingOff('Office'));
+      await flush();
+      const left = remote.abandonHandoff();
+      await first;
+      const again = remote.handOff(request(), handingOff('Office'));
+      releaseFirst();
+
+      expect(await left).toBe('chosenAgain');
+      await again;
+      expect(server.commands()).toEqual([]);
+      expect(server.room.playbackState).toBe('PLAYBACK_STATE_PLAYING');
+    });
+
+    it('can’t vouch for a room whose abandoned handoff ended uncertain', async () => {
+      const { server, remote } = store();
+      // Both submissions lost, then no receipt: the room may or may not have the queue.
+      server.failNext('POST /v1/integrations/sonos/handoffs', lost());
+      server.failNext('POST /v1/integrations/sonos/handoffs', lost());
+      const release = server.holdNext('POST /v1/integrations/sonos/handoffs');
+
+      const handoff = remote.handOff(request(), handingOff('Office'));
+      await flush();
+      const left = remote.abandonHandoff();
+      await handoff;
+      release();
+
+      expect(await left).toBe('mayStillPlay');
     });
   });
 
@@ -549,7 +588,7 @@ describe('SonosRoomStore', () => {
       const { server, remote } = store();
       server.room.playbackState = 'PLAYBACK_STATE_PLAYING';
 
-      expect(await remote.pauseRoomLeftBehind('h1')).toBe(true);
+      expect(await remote.pauseRoomLeftBehind('h1', 'g1')).toBe('quiet');
 
       expect(server.commands()).toEqual([
         expect.objectContaining({ action: 'pause', expected_item_id: 'item-q1' }),
@@ -559,7 +598,7 @@ describe('SonosRoomStore', () => {
     it('sends nothing to a room that is already paused', async () => {
       const { server, remote } = store();
 
-      expect(await remote.pauseRoomLeftBehind('h1')).toBe(true);
+      expect(await remote.pauseRoomLeftBehind('h1', 'g1')).toBe('quiet');
 
       expect(server.commands()).toEqual([]);
     });
@@ -572,7 +611,7 @@ describe('SonosRoomStore', () => {
         new AccountsApiError('', 409, 'sonos_playback_changed', false)
       );
 
-      expect(await remote.pauseRoomLeftBehind('h1')).toBe(true);
+      expect(await remote.pauseRoomLeftBehind('h1', 'g1')).toBe('quiet');
 
       expect(server.room.playbackState).toBe('PLAYBACK_STATE_PAUSED');
     });
@@ -581,7 +620,7 @@ describe('SonosRoomStore', () => {
       const { server, remote } = store();
       server.failNext('GET /v1/integrations/sonos/playback/h1', lost());
 
-      expect(await remote.pauseRoomLeftBehind('h1')).toBe(false);
+      expect(await remote.pauseRoomLeftBehind('h1', 'g1')).toBe('mayStillPlay');
     });
   });
 
@@ -591,7 +630,7 @@ describe('SonosRoomStore', () => {
     async function playingThenPaused() {
       const setup = store();
       setup.server.room.playbackState = 'PLAYBACK_STATE_PLAYING';
-      setup.remote.adopt('h1', 'Office');
+      setup.remote.adopt('h1', OFFICE);
       await vi.advanceTimersByTimeAsync(0);
       setup.server.room.playbackState = 'PLAYBACK_STATE_PAUSED';
       vi.setSystemTime(NOW + 60_000);
@@ -702,7 +741,7 @@ describe('SonosRoomStore', () => {
           currentIdentifier: 'q1',
           positionSeconds: 0,
         })!,
-        'Office'
+        handingOff('Office')
       );
       await flush();
 

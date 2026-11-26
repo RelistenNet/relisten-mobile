@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('react-native', () => ({}));
+const alert = vi.hoisted(() => vi.fn());
+vi.mock('react-native', () => ({ Alert: { alert }, Platform: { OS: 'ios' } }));
 
-import { playDestination, STALE_ROOM_MS } from './sonos_where_to_play';
+import { askWhereToPlay, playDestination, STALE_ROOM_MS } from './sonos_where_to_play';
 
 const NOW = Date.parse('2026-11-25T12:00:00Z');
 const pausedRoom = {
@@ -34,5 +35,25 @@ describe('playDestination', () => {
 
   it('keeps the room when the app is in the background, where nothing can ask', () => {
     expect(playDestination({ ...pausedRoom, appActive: false })).toBe('room');
+  });
+});
+
+describe('askWhereToPlay', () => {
+  it('plays on the phone when the question is dismissed', async () => {
+    const answer = askWhereToPlay('Office');
+    const [, , , options] = alert.mock.lastCall!;
+
+    options.onDismiss();
+
+    await expect(answer).resolves.toBe('phone');
+  });
+
+  it('plays on the room the listener taps', async () => {
+    const answer = askWhereToPlay('Office');
+    const [, , buttons] = alert.mock.lastCall!;
+
+    buttons.find((button: { text: string }) => button.text === 'Office').onPress();
+
+    await expect(answer).resolves.toBe('room');
   });
 });

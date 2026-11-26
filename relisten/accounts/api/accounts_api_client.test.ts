@@ -26,6 +26,7 @@ const capture: AccountScopeCapture = Object.freeze({
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -68,7 +69,6 @@ describe('AccountsApiTransport', () => {
     await vi.advanceTimersByTimeAsync(8000);
 
     await failure;
-    vi.useRealTimers();
   });
 
   it('fails as a lost response when the body stalls past the time limit', async () => {
@@ -93,7 +93,6 @@ describe('AccountsApiTransport', () => {
     await vi.advanceTimersByTimeAsync(8000);
 
     await failure;
-    vi.useRealTimers();
   });
 
   it('still stops when the caller cancels a request that has a time limit', async () => {

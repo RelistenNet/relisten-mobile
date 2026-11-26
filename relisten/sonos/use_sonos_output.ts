@@ -132,9 +132,10 @@ export function useSonosOutput() {
   /**
    * Moves the queue to `group`. Whatever plays now, the phone or another
    * room, pauses only at this explicit choice. It resumes if Sonos refuses
-   * before taking over or the listener cancels, and stays paused when the
-   * room plays or the outcome is uncertain, so music never plays in two
-   * places. Nothing happens while another handoff is still settling.
+   * before taking over, and stays paused when the room plays or the outcome
+   * is uncertain, so music never plays in two places. A cancel is the
+   * listener choosing this phone, and `SonosSession.transferToPhone` decides
+   * whether it plays. Nothing happens while another handoff is still settling.
    */
   const playOn = useCallback(
     async (group: SonosGroup) => {
@@ -164,7 +165,7 @@ export function useSonosOutput() {
 
       // Once the room takes the queue, the store controls it and the session
       // routes the player there, so this phone's controls reach the room.
-      const outcome = await sonosRoom.handOff(request, group.name);
+      const outcome = await sonosRoom.handOff(request, { groupName: group.name, wasPlaying });
       if (!scope.isCurrent(capture)) {
         return;
       }

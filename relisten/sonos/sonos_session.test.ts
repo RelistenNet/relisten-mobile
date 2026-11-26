@@ -65,7 +65,7 @@ import type { SonosHandoffRequest } from './sonos_api';
 import type { SonosHandoffOutcome } from './sonos_handoff';
 import type { SonosPlayback, SonosQueueEntry, SonosTransport } from './sonos_playback';
 import type { RoomQueueTracks } from './sonos_queue_tracks';
-import type { SonosRoomState } from './sonos_room_store';
+import type { RoomLeftBehind, SonosHandoffInFlight, SonosRoomState } from './sonos_room_store';
 import { SonosSession } from './sonos_session';
 import { STALE_ROOM_MS } from './sonos_where_to_play';
 
@@ -139,7 +139,7 @@ class FakeRoom {
 
   /** The room can't confirm its current item just now. */
   unconfirmed() {
-    this.state = { kind: 'checking', handle: this.handle, groupName: 'Office' };
+    this.state = { kind: 'checking', handle: this.handle, groupId: 'g1', groupName: 'Office' };
     this.notify();
   }
 
@@ -205,7 +205,10 @@ class FakeRoom {
   };
   /** Leaves the outcome uncertain unless a test says otherwise. */
   handOff = vi.fn<
-    (request: SonosHandoffRequest, groupName: string) => Promise<SonosHandoffOutcome>
+    (
+      request: SonosHandoffRequest,
+      room: { groupName: string; wasPlaying: boolean }
+    ) => Promise<SonosHandoffOutcome>
   >(async () => ({ kind: 'uncertain', reconnect: false }));
   takeHandedOffOrder = (handle: string) => {
     const order = this.handedOff?.handle === handle ? this.handedOff.occurrenceIds : undefined;
@@ -215,30 +218,32 @@ class FakeRoom {
     return order;
   };
   release = vi.fn(() => this.end());
-  handoffInFlight: { groupId: string; groupName: string } | undefined;
+  handoffInFlight: SonosHandoffInFlight | undefined;
   getHandoffInFlight = () => this.handoffInFlight;
   /** Ends a handoff `holdNextHandoffUntilAbandoned` holds open, as cancelled. */
   private abandon: (() => void) | undefined;
-  /** Whether an abandoned handoff's room is known to be quiet; see `SonosRoomStore.abandonHandoff`. */
-  abandonedRoomQuiet = true;
+  /** What an abandoned handoff left in its room; see `SonosRoomStore.abandonHandoff`. */
+  abandonedRoomLeft: RoomLeftBehind = 'quiet';
   abandonHandoff = vi.fn(() => {
     const abandon = this.abandon;
     this.handoffInFlight = undefined;
     this.abandon = undefined;
     abandon?.();
-    return abandon ? Promise.resolve(this.abandonedRoomQuiet) : undefined;
+    return abandon ? Promise.resolve(this.abandonedRoomLeft) : undefined;
   });
   /** The next handoff stays open until it is abandoned. */
   holdNextHandoffUntilAbandoned() {
     this.handOff.mockImplementationOnce(
-      (_request, groupName) =>
+      (_request, { groupName, wasPlaying }) =>
         new Promise<SonosHandoffOutcome>((resolve) => {
-          this.handoffInFlight = { groupId: 'g1', groupName };
+          this.handoffInFlight = { groupId: 'g1', groupName, wasPlaying };
           this.abandon = () => resolve({ kind: 'cancelled' });
         })
     );
   }
-  pauseRoomLeftBehind = vi.fn<(handle: string) => Promise<boolean>>(async () => true);
+  pauseRoomLeftBehind = vi.fn<(handle: string, groupId: string) => Promise<RoomLeftBehind>>(
+    async () => 'quiet'
+  );
   /**
    * Recently in use unless a test says otherwise, so Play goes to the room
    * without asking (`playDestination`).
@@ -512,7 +517,7 @@ describe('SonosSession', () => {
     it('leaves a new show alone while another handoff is still settling', async () => {
       room.plays(tracks[0].identifier);
       await settle();
-      room.handoffInFlight = { groupId: 'g2', groupName: 'Kitchen' };
+      room.handoffInFlight = { groupId: 'g2', groupName: 'Kitchen', wasPlaying: true };
       const show = [addedElsewhere('Jack Straw')];
 
       player.queue.replaceQueue(show, 0);
@@ -706,7 +711,7 @@ describe('SonosSession', () => {
 
       const show = [addedElsewhere('Jack Straw'), addedElsewhere('Dire Wolf')];
       room.handOff.mockImplementationOnce(async () => {
-        room.handoffInFlight = { groupId: 'g1', groupName: 'Office' };
+        room.handoffInFlight = { groupId: 'g1', groupName: 'Office', wasPlaying: true };
         read.release();
         await settle();
         room.handoffInFlight = undefined;
@@ -790,7 +795,7 @@ describe('SonosSession', () => {
       expect(room.saveQueue).not.toHaveBeenCalled();
       expect(room.handOff).toHaveBeenCalledWith(
         expect.objectContaining({ group_id: 'g1', start_index: 0, occurrences: show.map(wire) }),
-        'Office'
+        { groupName: 'Office', wasPlaying: true }
       );
     });
 
@@ -1165,7 +1170,7 @@ describe('SonosSession', () => {
       expect(playbackSource.lastState()).toBe(PlaybackSource.Native);
       expect(mocks.native.play.mock.calls[0][0].identifier).toBe(tracks[1].identifier);
       // Its last reading said it was playing, so it is paused if it can be reached.
-      expect(room.pauseRoomLeftBehind).toHaveBeenCalledWith('h1');
+      expect(room.pauseRoomLeftBehind).toHaveBeenCalledWith('h1', 'g1');
       expect(messages()).toEqual(['Office can’t be reached, so this is playing on your phone.']);
     });
   });
@@ -1234,14 +1239,14 @@ describe('SonosSession', () => {
       expect(playbackSource.lastState()).toBe(PlaybackSource.Native);
       expect(mocks.native.play).toHaveBeenCalledTimes(1);
       expect(mocks.native.play.mock.calls[0][0].identifier).toBe(tracks[1].identifier);
-      expect(room.pauseRoomLeftBehind).toHaveBeenCalledWith('h1');
+      expect(room.pauseRoomLeftBehind).toHaveBeenCalledWith('h1', 'g1');
     });
 
     it('says so when the room it left behind couldn’t be paused', async () => {
       room.plays(tracks[1].identifier);
       await settle();
       room.command.mockResolvedValueOnce(false);
-      room.pauseRoomLeftBehind.mockResolvedValueOnce(false);
+      room.pauseRoomLeftBehind.mockResolvedValueOnce('mayStillPlay');
 
       await session.transferToPhone();
       await settle();
@@ -1261,7 +1266,6 @@ describe('SonosSession', () => {
       player.playTrackAtIndex(0);
       await settle();
       expect(room.handOff).toHaveBeenCalled();
-      const reads = room.readQueue.mock.calls.length;
 
       await session.transferToPhone();
       await settle();
@@ -1270,9 +1274,8 @@ describe('SonosSession', () => {
       expect(playbackSource.lastState()).toBe(PlaybackSource.Native);
       expect(player.queue.orderedTracks).toEqual(show);
       expect(mocks.native.play).toHaveBeenCalledTimes(1);
-      expect(mocks.native.play.mock.calls[0][0].identifier).toBe(show[0].identifier);
       // The old room's queue is never read back over the new show.
-      expect(room.readQueue).toHaveBeenCalledTimes(reads);
+      expect(mocks.native.play.mock.calls[0][0].identifier).toBe(show[0].identifier);
       expect(messages()).toEqual([]);
     });
 
@@ -1291,6 +1294,54 @@ describe('SonosSession', () => {
       expect(messages()).toEqual(['You’re offline, so playback moved from Office to this phone.']);
     });
 
+    it('plays on the phone when the listener cancels a move to another room while music played', async () => {
+      room.plays(tracks[1].identifier, { positionMillis: 42000 });
+      await settle();
+      // What `useSonosOutput.playOn` does: hand off to another room, then pause this one.
+      room.holdNextHandoffUntilAbandoned();
+      void room.handOff({} as SonosHandoffRequest, { groupName: 'Kitchen', wasPlaying: true });
+      player.pause();
+      await settle();
+
+      await session.transferToPhone();
+      await settle();
+
+      expect(playbackSource.lastState()).toBe(PlaybackSource.Native);
+      expect(mocks.native.play).toHaveBeenCalledTimes(1);
+      expect(mocks.native.play.mock.calls[0][0].identifier).toBe(tracks[1].identifier);
+    });
+
+    it('resumes the phone when the listener cancels a move from it while it played', async () => {
+      player.queue.replaceQueue(tracks, 0);
+      await settle();
+      // What `useSonosOutput.playOn` does: pause the phone, then hand off.
+      state.setState(RelistenPlaybackState.Paused);
+      room.holdNextHandoffUntilAbandoned();
+      void room.handOff({} as SonosHandoffRequest, { groupName: 'Kitchen', wasPlaying: true });
+
+      await session.transferToPhone();
+      await settle();
+
+      expect(room.abandonHandoff).toHaveBeenCalled();
+      expect(mocks.native.resume).toHaveBeenCalledTimes(1);
+    });
+
+    it('plays on the phone when it goes offline while the listener’s Play is on its way', async () => {
+      room.plays(tracks[1].identifier, { paused: true, positionMillis: 42000 });
+      await settle();
+      // Out of reach: the Play never answers.
+      room.command.mockImplementationOnce(() => new Promise(() => {}));
+      player.resume();
+      await settle();
+
+      session.leaveRoomOffline();
+      await settle();
+
+      expect(playbackSource.lastState()).toBe(PlaybackSource.Native);
+      expect(mocks.native.play).toHaveBeenCalledTimes(1);
+      expect(mocks.native.play.mock.calls[0][0].identifier).toBe(tracks[1].identifier);
+    });
+
     it('does nothing offline when no room is playing', () => {
       session.leaveRoomOffline();
 
@@ -1302,7 +1353,7 @@ describe('SonosSession', () => {
       room.plays(tracks[0].identifier, { paused: true });
       await settle();
       room.holdNextHandoffUntilAbandoned();
-      room.abandonedRoomQuiet = false;
+      room.abandonedRoomLeft = 'mayStillPlay';
 
       player.queue.replaceQueue([addedElsewhere('Jack Straw')], 0);
       player.playTrackAtIndex(0);
