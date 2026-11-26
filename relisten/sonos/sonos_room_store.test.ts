@@ -41,7 +41,6 @@ const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 /** The fake service's one room. */
 const OFFICE = { groupId: 'g1', groupName: 'Office' };
-const handingOff = (groupName: string) => ({ groupName, wasPlaying: false });
 
 async function adopted(rememberedRoom?: string) {
   const setup = store(rememberedRoom);
@@ -490,9 +489,9 @@ describe('SonosRoomStore', () => {
       const { server, remote } = store();
       const release = server.holdNext('POST /v1/integrations/sonos/handoffs');
 
-      const first = remote.handOff(request(), handingOff('Office'));
+      const first = remote.handOff(request(), 'Office');
       await flush();
-      const second = await remote.handOff({ ...request(), group_id: 'g2' }, handingOff('Kitchen'));
+      const second = await remote.handOff({ ...request(), group_id: 'g2' }, 'Kitchen');
       release();
       await first;
 
@@ -507,7 +506,7 @@ describe('SonosRoomStore', () => {
     it('takes over the room once it confirms, remembering the order it sent', async () => {
       const { remote } = store();
 
-      const outcome = await remote.handOff(request(), handingOff('Office'));
+      const outcome = await remote.handOff(request(), 'Office');
 
       expect(outcome).toEqual({ kind: 'playing', handle: HANDLE_UUID });
       expect(remote.takeHandedOffOrder(HANDLE_UUID)).toEqual(['q1']);
@@ -518,7 +517,7 @@ describe('SonosRoomStore', () => {
       const { server, remote, switchAccount } = store();
       const release = server.holdNext('POST /v1/integrations/sonos/handoffs');
 
-      const handoff = remote.handOff(request(), handingOff('Office'));
+      const handoff = remote.handOff(request(), 'Office');
       await flush();
       switchAccount();
       release();
@@ -533,7 +532,7 @@ describe('SonosRoomStore', () => {
       server.room.playbackState = 'PLAYBACK_STATE_PLAYING';
       const release = server.holdNext('POST /v1/integrations/sonos/handoffs');
 
-      const handoff = remote.handOff(request(), handingOff('Office'));
+      const handoff = remote.handOff(request(), 'Office');
       await flush();
       const left = remote.abandonHandoff();
 
@@ -553,17 +552,43 @@ describe('SonosRoomStore', () => {
       server.room.playbackState = 'PLAYBACK_STATE_PLAYING';
       const releaseFirst = server.holdNext('POST /v1/integrations/sonos/handoffs');
 
-      const first = remote.handOff(request(), handingOff('Office'));
+      const first = remote.handOff(request(), 'Office');
       await flush();
       const left = remote.abandonHandoff();
       await first;
-      const again = remote.handOff(request(), handingOff('Office'));
+      const again = remote.handOff(request(), 'Office');
       releaseFirst();
 
       expect(await left).toBe('chosenAgain');
       await again;
       expect(server.commands()).toEqual([]);
       expect(server.room.playbackState).toBe('PLAYBACK_STATE_PLAYING');
+    });
+
+    it('pauses the abandoned queue after all when the room chosen again refuses its new one', async () => {
+      const { server, remote } = store();
+      server.room.handle = HANDLE_UUID;
+      server.room.playbackState = 'PLAYBACK_STATE_PLAYING';
+      const releaseFirst = server.holdNext('POST /v1/integrations/sonos/handoffs');
+
+      const first = remote.handOff(request(), 'Office');
+      await flush();
+      const left = remote.abandonHandoff();
+      await first;
+      server.failNext(
+        'POST /v1/integrations/sonos/handoffs',
+        new AccountsApiError('Invalid', 422, null, false)
+      );
+      const releaseSecond = server.holdNext('POST /v1/integrations/sonos/handoffs');
+      const again = remote.handOff(request(), 'Office');
+      await flush();
+      releaseFirst();
+      await flush();
+      releaseSecond();
+
+      expect(await again).toMatchObject({ kind: 'refused' });
+      expect(await left).toBe('quiet');
+      expect(server.room.playbackState).toBe('PLAYBACK_STATE_PAUSED');
     });
 
     it('can’t vouch for a room whose abandoned handoff ended uncertain', async () => {
@@ -573,7 +598,7 @@ describe('SonosRoomStore', () => {
       server.failNext('POST /v1/integrations/sonos/handoffs', lost());
       const release = server.holdNext('POST /v1/integrations/sonos/handoffs');
 
-      const handoff = remote.handOff(request(), handingOff('Office'));
+      const handoff = remote.handOff(request(), 'Office');
       await flush();
       const left = remote.abandonHandoff();
       await handoff;
@@ -741,7 +766,7 @@ describe('SonosRoomStore', () => {
           currentIdentifier: 'q1',
           positionSeconds: 0,
         })!,
-        handingOff('Office')
+        'Office'
       );
       await flush();
 

@@ -19,10 +19,10 @@ import { ItemSeparator } from '@/relisten/components/item_separator';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useRelistenCastStatus, useShouldRenderCastButton } from '@/relisten/casting/cast_ui';
 import { OutputVolumeRow } from '@/relisten/player/ui/output_volume';
-import { usePlayerOutput } from '@/relisten/player/ui/player_output_route';
+import { type PlayerOutput, usePlayerOutput } from '@/relisten/player/ui/player_output_route';
 import { groupSonosHouseholds, type SonosGroup } from '@/relisten/sonos/sonos_api';
 import { HANDOFF_UNCONFIRMED_MESSAGE } from '@/relisten/sonos/sonos_handoff';
-import { useSonosHandoffInFlight, useSonosRoom } from '@/relisten/sonos/sonos_room_store';
+import { useSonosRoom } from '@/relisten/sonos/sonos_room_store';
 import { sonosSession } from '@/relisten/sonos/sonos_session';
 import { type SonosHandoffState, useSonosOutput } from '@/relisten/sonos/use_sonos_output';
 
@@ -63,24 +63,14 @@ export default function PlayOnSheet() {
  */
 function ThisPhoneRow() {
   const router = useRouter();
+  // Covers a handoff started for a new show while a room plays, which never passes through this sheet.
   const output = usePlayerOutput();
-  // From the store, not `useSonosOutput`: a handoff started for a new show
-  // while a room plays never passes through this sheet.
-  const handoff = useSonosHandoffInFlight();
-  const onOrMovingToSonos = useSonosRoom().kind !== 'none' || handoff !== undefined;
+  const onOrMovingToSonos = output?.kind === 'sonos';
   return (
     <OutputRow
       icon={<MaterialIcons name="smartphone" size={22} color={ICON_COLOR} />}
       title={Platform.OS === 'ios' ? 'This iPhone' : 'This Phone'}
-      subtitle={
-        handoff
-          ? `Tap to play here instead of ${handoff.groupName}`
-          : onOrMovingToSonos
-            ? `Tap to move playback from ${output?.name}`
-            : output
-              ? `Music is playing on ${output.name}`
-              : undefined
-      }
+      subtitle={thisPhoneSubtitle(output)}
       trailing={
         output ? undefined : <MaterialIcons name="check" size={20} color={RelistenBlue[300]} />
       }
@@ -391,6 +381,19 @@ function OutputRow({
   ) : (
     content
   );
+}
+
+/** What tapping This iPhone would do, or where music plays instead of the phone. */
+function thisPhoneSubtitle(output: PlayerOutput | null): string | undefined {
+  if (!output) {
+    return undefined;
+  }
+  if (output.kind !== 'sonos') {
+    return `Music is playing on ${output.name}`;
+  }
+  return output.connecting
+    ? `Tap to play here instead of ${output.name}`
+    : `Tap to move playback from ${output.name}`;
 }
 
 /**

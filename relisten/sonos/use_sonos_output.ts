@@ -8,7 +8,6 @@ import {
   useAccountScope,
   useAccountScopeSource,
 } from '@/relisten/accounts/account_context';
-import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
 import { useRelistenPlayerCurrentTrack } from '@/relisten/player/relisten_player_queue_hooks';
 import {
@@ -20,13 +19,9 @@ import {
   SONOS_CALLBACK_URL,
   type SonosGroup,
 } from './sonos_api';
-import {
-  handoffNeedsReconnect,
-  handoffRequest,
-  phoneMayResumeAfter,
-  type SonosHandoffOutcome,
-} from './sonos_handoff';
+import { handoffNeedsReconnect, handoffRequest, type SonosHandoffOutcome } from './sonos_handoff';
 import { sonosRoom, useSonosHandoffInFlight } from './sonos_room_store';
+import { sonosSession } from './sonos_session';
 
 /**
  * What the Play on sheet can show for Sonos:
@@ -130,12 +125,9 @@ export function useSonosOutput() {
   }, [api, refresh]);
 
   /**
-   * Moves the queue to `group`. Whatever plays now, the phone or another
-   * room, pauses only at this explicit choice. It resumes if Sonos refuses
-   * before taking over, and stays paused when the room plays or the outcome
-   * is uncertain, so music never plays in two places. A cancel is the
-   * listener choosing this phone, and `SonosSession.transferToPhone` decides
-   * whether it plays. Nothing happens while another handoff is still settling.
+   * Moves the queue to `group` (`SonosSession.moveQueueToRoom`, which also
+   * decides whether the phone plays again) and shows how it went. Nothing
+   * happens while another handoff is still settling.
    */
   const playOn = useCallback(
     async (group: SonosGroup) => {
@@ -159,18 +151,13 @@ export function useSonosOutput() {
         return;
       }
 
-      const wasPlaying = player.state === RelistenPlaybackState.Playing;
-      player.pause();
       setFinished(undefined);
 
       // Once the room takes the queue, the store controls it and the session
       // routes the player there, so this phone's controls reach the room.
-      const outcome = await sonosRoom.handOff(request, { groupName: group.name, wasPlaying });
+      const outcome = await sonosSession.moveQueueToRoom(request, group.name);
       if (!scope.isCurrent(capture)) {
         return;
-      }
-      if (wasPlaying && phoneMayResumeAfter(outcome)) {
-        player.resume();
       }
       if (handoffNeedsReconnect(outcome)) {
         setConnection({ kind: 'notLinked' });

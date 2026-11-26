@@ -9,7 +9,13 @@ import type { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
 import { currentTrackIdentifier, PlaybackSource, progress } from '@/relisten/player/shared_state';
 import { log } from '@/relisten/util/logging';
 import { SonosPlaybackDriver } from './sonos_driver';
-import { HANDOFF_UNCONFIRMED_MESSAGE, handoffRequest } from './sonos_handoff';
+import type { SonosHandoffRequest } from './sonos_api';
+import {
+  HANDOFF_UNCONFIRMED_MESSAGE,
+  handoffRequest,
+  phoneMayResumeAfter,
+  type SonosHandoffOutcome,
+} from './sonos_handoff';
 import {
   estimatedPositionMillis,
   isSonosPlaying,
@@ -55,6 +61,21 @@ interface PhonePlace {
   identifier: string | undefined;
   seconds: number;
 }
+
+/**
+ * Why playback moves to the phone (`SonosSession.moveToPhone`), and what
+ * each reason changes:
+ * - `chosen`: the listener tapped This iPhone, or Cancel while connecting.
+ *   Only this waits briefly for the room to say where it stopped.
+ * - `offline`: the phone can't reach any room, so nothing is paused there,
+ *   and the phone doesn't play while the room may still be playing.
+ * - `playHere`: a Play went to the phone (`whereToPlay`), and `play`
+ *   fulfils it once the room is left.
+ */
+type PhoneMove =
+  | { reason: 'chosen' }
+  | { reason: 'offline' }
+  | { reason: 'playHere'; play: () => Promise<void> };
 
 /** Builds the phone's queue for the room's order (`queueTracksForRoom`). */
 export type BuildRoomQueue = (
@@ -137,11 +158,15 @@ export class SonosSession {
   private notFollowing: { handle: string; version: number; retryAt: number } | undefined;
   private commandsInFlight = 0;
   /**
-   * Plays the listener asked for that are still on their way to the room: a
-   * Play, or a track chosen to play (`autoplay`). A move to the phone plays
-   * if one is pending.
+   * Whether the listener wants music playing, wherever it plays. Their Play,
+   * Pause and tracks chosen to play set it at once (`transport`,
+   * `playOccurrence`). Otherwise it follows the room's readings, so a pause
+   * from another Sonos app counts too, except while one of their commands or
+   * a handoff is on its way (`followListenerIntent`). A move to the phone
+   * plays when it is set (`moveToPhone`). While the phone plays on its own,
+   * nothing reads it.
    */
-  private playsInFlight = 0;
+  private wantsMusic = false;
   private saving: Promise<boolean> | undefined;
   /** An edit arrived during a save; it goes out in one more save after it. */
   private saveAgain = false;
@@ -186,26 +211,60 @@ export class SonosSession {
   // region Phone to room: the driver's commands
 
   /**
+   * Moves the phone's queue to the room the listener chose in Play On.
+   * Whatever plays now, the phone or another room, pauses at this choice. If
+   * Sonos refuses before taking over, the phone plays again when the
+   * listener wanted music; after any other outcome it stays paused, so the
+   * queue never plays in two places. Cancelling is the listener choosing
+   * the phone (`moveToPhone`).
+   */
+  async moveQueueToRoom(
+    request: SonosHandoffRequest,
+    groupName: string
+  ): Promise<SonosHandoffOutcome> {
+    const inFlight = this.store.getHandoffInFlight();
+    if (inFlight) {
+      // Refused before pausing anything, so nothing needs resuming.
+      return { kind: 'refused', message: stillMovingMessage(inFlight.groupName), reconnect: false };
+    }
+
+    const wanted = this.player.state === RelistenPlaybackState.Playing;
+    // Pausing a room goes through `transport`, which clears `wantsMusic`. The
+    // pause only makes way for the new room, so the listener's wish is put back.
+    this.player.pause();
+    this.wantsMusic = wanted;
+
+    const outcome = await this.store.handOff(request, groupName);
+    // `wanted`, not `wantsMusic`: when the handoff ends, the store repeats the
+    // reading of the room it left, paused by this move, and that reading
+    // clears `wantsMusic` before this line runs.
+    if (phoneMayResumeAfter(outcome) && wanted) {
+      this.player.resume();
+    }
+    return outcome;
+  }
+
+  /**
    * Sends play, pause or seek, then shows the room as it is. Play may go to
    * the phone instead (`whereToPlay`).
    */
   async transport(transport: SonosTransport): Promise<void> {
     const play = transport.action === 'play';
-    if (play) {
-      this.playsInFlight += 1;
+    if (play || transport.action === 'pause') {
+      this.wantsMusic = play;
     }
     try {
       await this.whileCommanding(async () => {
         if (play && (await this.whereToPlay()) === 'phone') {
-          await this.playHereInstead(() => this.playOnPhone(this.phoneSelection(), true));
+          await this.moveToPhone({
+            reason: 'playHere',
+            play: () => this.playOnPhone(this.phoneSelection(), true),
+          });
           return;
         }
         await this.store.command(transport);
       });
     } finally {
-      if (play) {
-        this.playsInFlight -= 1;
-      }
       this.publishLatestRoom();
     }
   }
@@ -240,15 +299,16 @@ export class SonosSession {
     }
 
     if (context.autoplay) {
-      this.playsInFlight += 1;
+      this.wantsMusic = true;
     }
     try {
       await this.whileCommanding(async () => {
         if (context.autoplay && (await this.whereToPlay()) === 'phone') {
           // The player's request is still open, so the phone's own driver fulfils it.
-          await this.playHereInstead(() =>
-            this.player.getNativePlaybackDriver().play(streamable, context)
-          );
+          await this.moveToPhone({
+            reason: 'playHere',
+            play: () => this.player.getNativePlaybackDriver().play(streamable, context),
+          });
           return;
         }
 
@@ -278,9 +338,6 @@ export class SonosSession {
         }
       });
     } finally {
-      if (context.autoplay) {
-        this.playsInFlight -= 1;
-      }
       // Publishing the target ends the player's play request even when the room
       // refused (see `PlaybackDriver.play`); publishing the room right after moves
       // the queue back to the room's track if it didn't follow. After a move to
@@ -365,10 +422,7 @@ export class SonosSession {
       return;
     }
 
-    const outcome = await this.store.handOff(request, {
-      groupName: room.groupName,
-      wasPlaying: isSonosPlaying(room),
-    });
+    const outcome = await this.store.handOff(request, room.groupName);
     if (outcome.kind === 'playing' || outcome.kind === 'cancelled') {
       // Cancelled: playback moved to the phone (`transferToPhone`, `leaveRoomOffline`).
       return;
@@ -455,12 +509,26 @@ export class SonosSession {
       return;
     }
 
+    this.followListenerIntent(room.playback);
     if (room.commandError && room.commandError !== commandErrorOf(previous)) {
       showToast(room.commandError, { tone: 'warning' });
     }
     this.publishRoom(room.playback);
     this.reconcileQueue(room.playback);
   };
+
+  /**
+   * With nothing of the listener's on its way to a room, what the room does
+   * is what they chose, here or in another Sonos app. While a command or a
+   * handoff is in flight, the room still shows the state before it: a
+   * handoff pauses the room it leaves, which isn't a choice to stop
+   * listening.
+   */
+  private followListenerIntent(playback: SonosPlayback) {
+    if (this.commandsInFlight === 0 && !this.store.getHandoffInFlight()) {
+      this.wantsMusic = isSonosPlaying(playback);
+    }
+  }
 
   /** Routes the player to the room. The phone never plays alongside it. */
   private routeToRoom() {
@@ -941,105 +1009,100 @@ export class SonosSession {
 
   // region Room back to the phone
   //
-  // Ways the player stops following a room:
-  // - `transferToPhone`: the listener chose this phone (or cancelled a handoff);
-  // - `leaveRoomOffline`: the phone can't reach any room;
-  // - `playHereInstead`: a Play went to the phone (`whereToPlay`);
+  // Playback leaves a room for the phone in two ways:
+  // - `moveToPhone`: this device chose the phone, for one of the reasons in
+  //   `PhoneMove`.
   // - `returnToPhone`: the room stopped playing this queue underneath the phone.
-  // The first three go through `leaveRoom`, which also pauses a room that may
-  // still be playing; `unrouteFromRoom` only switches the player's driver.
+  // Whether the phone then plays follows `wantsMusic`.
 
   /**
-   * Moves playback back to this phone. It never depends on reaching the room:
-   * the listener may be out of its reach, in a garage or offline, and the
-   * phone must still play.
-   *
-   * When the phone and the room share a queue, the room gets a few seconds
-   * to pause and say where it stopped, and the phone carries on from exactly
-   * there, in the room's latest order. Otherwise, or when the room doesn't
-   * answer in time, the phone carries on from the track and position it
-   * shows, and the room is paused in the background. A handoff still on its
-   * way to a room (a newly chosen show) is abandoned, so the phone plays that
-   * show (`abandonHandoff`).
-   *
-   * The phone plays if the player showed playing or loading, music was
-   * playing when the listener chose the room being connected, or a Play is
-   * still on its way to the room (the abandoned show's Play counts), and
-   * otherwise waits at that place for Play. A cancel's Play decision is
-   * made here; going offline (`leaveRoomOffline`) never starts the phone.
+   * The listener chose this phone: This iPhone in Play On, or Cancel while
+   * the queue moves to a room. It never depends on reaching the room: the
+   * listener may be out of its reach, in a garage, and the phone must still
+   * play.
    */
-  async transferToPhone(): Promise<void> {
-    // What the listener had going, read before abandoning the handoff clears it.
+  transferToPhone(): Promise<void> {
+    return this.moveToPhone({ reason: 'chosen' });
+  }
+
+  /** The phone can't reach any room: no network, or offline mode. */
+  leaveRoomOffline(): Promise<void> {
+    return this.moveToPhone({ reason: 'offline' });
+  }
+
+  /**
+   * Moves playback from the room, or from a handoff on its way to one, to
+   * the phone:
+   * 1. A handoff in flight is abandoned; if it lands anyway, the store pauses
+   *    the room (`abandonHandoff`).
+   * 2. When the phone and the room share a queue, the room may get a few
+   *    seconds to pause and say where it stopped (`whereRoomStopped`).
+   * 3. The player stops following the room, which is paused in the
+   *    background unless it already answered (`leaveRoom`).
+   * 4. The phone carries on from where the room stopped, or else from the
+   *    track and position it shows, playing if the listener wants music.
+   *    Offline, a room that was playing may still be, and the phone can't
+   *    stop it, so the phone waits rather than play in a second place.
+   */
+  private async moveToPhone(move: PhoneMove): Promise<void> {
+    const offline = move.reason === 'offline';
     const room = this.store.getState();
     const handoff = this.store.getHandoffInFlight();
-    const play =
-      handoff?.wasPlaying === true ||
-      this.playsInFlight > 0 ||
-      [RelistenPlaybackState.Playing, RelistenPlaybackState.Stalled].includes(this.player.state);
+    // Read before abandoning the handoff, whose end repeats the paused reading of the room it left.
+    const play = this.wantsMusic && !(offline && mayStillPlay(room));
 
     this.abandonHandoff();
     if (room.kind === 'none') {
-      // The queue was on its way from this phone, which `useSonosOutput.playOn` paused.
-      if (play) {
-        this.player.resume();
+      // No room to leave. Either a handoff from this phone was on its way
+      // (`moveQueueToRoom` paused the phone), or the room ended while the
+      // listener was asked where to play and `returnToPhone` stopped the phone.
+      if (handoff) {
+        if (offline) {
+          showToast('You’re offline, so your queue stayed on this phone.', { tone: 'warning' });
+        }
+        if (play) {
+          this.player.resume();
+        }
       }
       return;
     }
 
-    // A pause that loses the race runs on, but can no longer touch the phone:
-    // once `leaveRoom` unroutes, its reads of the room stop at `stillFollowing`.
-    const sharesQueue =
-      room.kind === 'active' && !handoff && this.phoneHas(room.playback.occurrence?.occurrenceId);
-    const stoppedAt = sharesQueue
-      ? await Promise.race([
-          this.whileCommanding(() => this.pauseRoomForTransfer(isSonosPlaying(room.playback))),
-          wait(TRANSFER_WAIT_MS).then(() => undefined),
-        ])
-      : undefined;
+    const stoppedAt =
+      move.reason === 'chosen' && !handoff ? await this.whereRoomStopped(room) : undefined;
     if (!this.active) {
       // The room ended meanwhile; the queue is already back on the phone, and the user was told.
       return;
     }
 
-    // Without the room's own answer, the phone carries on from what it shows.
-    this.leaveRoom({ pauseInBackground: stoppedAt === undefined });
+    this.leaveRoom({ pauseInBackground: !offline && stoppedAt === undefined });
+    if (offline) {
+      const roomName = sonosRoomName(room) ?? 'Sonos';
+      showToast(`You’re offline, so playback moved from ${roomName} to this phone.`, {
+        tone: 'warning',
+      });
+    }
+    if (move.reason === 'playHere') {
+      await move.play();
+      return;
+    }
     await this.playOnPhone(stoppedAt ?? this.phoneSelection(), play);
   }
 
   /**
-   * Lets go of the room, and of a handoff on its way to one, when the phone
-   * can't reach any room: no network, or offline mode. The room can't be
-   * paused from here, and the phone waits at the track and position it
-   * shows. It plays only if the listener's Play was on its way to the room:
-   * a phone that lost its connection mustn't start playing on its own.
+   * Gives a room that shares the phone's queue `TRANSFER_WAIT_MS` to pause
+   * and say where it stopped. Undefined when the queues differ or the room
+   * doesn't answer in time. A pause that loses the race runs on, but can no
+   * longer touch the phone: once `leaveRoom` unroutes, its reads of the room
+   * stop at `stillFollowing`.
    */
-  leaveRoomOffline() {
-    const room = this.store.getState();
-    this.abandonHandoff();
-    if (!this.active) {
-      return;
+  private async whereRoomStopped(room: SonosRoomState): Promise<PhonePlace | undefined> {
+    if (room.kind !== 'active' || !this.phoneHas(room.playback.occurrence?.occurrenceId)) {
+      return undefined;
     }
-
-    this.leaveRoom({ pauseInBackground: false });
-    const roomName = sonosRoomName(room) ?? 'Sonos';
-    showToast(`You’re offline, so playback moved from ${roomName} to this phone.`, {
-      tone: 'warning',
-    });
-    void this.playOnPhone(this.phoneSelection(), this.playsInFlight > 0);
-  }
-
-  /**
-   * Plays on the phone instead of the room, as `whereToPlay` decided, by
-   * running `play` once the room is left. If the room ended while the
-   * listener was asked, `returnToPhone` has already stopped the phone, and
-   * nothing plays.
-   */
-  private async playHereInstead(play: () => Promise<void>) {
-    if (!this.active) {
-      return;
-    }
-    this.leaveRoom({ pauseInBackground: true });
-    await play();
+    return Promise.race([
+      this.whileCommanding(() => this.pauseRoomForTransfer(isSonosPlaying(room.playback))),
+      wait(TRANSFER_WAIT_MS).then(() => undefined),
+    ]);
   }
 
   /**
@@ -1050,13 +1113,11 @@ export class SonosSession {
   private leaveRoom({ pauseInBackground }: { pauseInBackground: boolean }) {
     const room = this.store.getState();
     const left = controlledRoom(room);
-    const mayStillPlay =
-      room.kind === 'checking' || (room.kind === 'active' && isSonosPlaying(room.playback));
 
     // Unrouted before the release, so the store's `none` doesn't also stop the phone.
     this.unrouteFromRoom();
     this.store.release();
-    if (pauseInBackground && mayStillPlay && left) {
+    if (pauseInBackground && mayStillPlay(room) && left) {
       this.warnIfStillPlaying(
         this.store.pauseRoomLeftBehind(left.handle, left.groupId),
         sonosRoomName(room)
@@ -1161,6 +1222,11 @@ export class SonosSession {
 }
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** Whether a room may be playing: it was last read playing, or hasn't been read yet. */
+function mayStillPlay(room: SonosRoomState): boolean {
+  return room.kind === 'checking' || (room.kind === 'active' && isSonosPlaying(room.playback));
+}
 
 function sameOrder(left: readonly string[], right: readonly string[]): boolean {
   return left.length === right.length && left.every((id, index) => id === right[index]);
