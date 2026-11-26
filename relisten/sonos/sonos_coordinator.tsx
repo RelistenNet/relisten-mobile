@@ -87,8 +87,10 @@ export function SonosCoordinator() {
     if (online) {
       return;
     }
+    // Offline mode is the listener's choice; only a lost network has a time it went.
+    const networkLostAt = offlineMode ? undefined : Date.now();
     const timer = setTimeout(
-      () => sonosSession.leaveRoomOffline(),
+      () => sonosSession.leaveRoomOffline(networkLostAt),
       offlineMode ? 0 : NETWORK_LOSS_GRACE_MS
     );
     return () => clearTimeout(timer);

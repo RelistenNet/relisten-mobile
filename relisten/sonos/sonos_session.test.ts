@@ -1400,50 +1400,83 @@ describe('SonosSession', () => {
       expect(messages()).toEqual(['You’re offline, so your queue stayed on this phone.']);
     });
 
-    it('keeps playing on the phone when going offline left a move from it unconfirmed', async () => {
-      player.queue.replaceQueue(tracks, 0);
-      state.setState(RelistenPlaybackState.Playing);
-      // The drop cut off the handoff's answers before the network-loss grace ran out.
-      await session.moveQueueToRoom(handoffTo('g2'), 'Kitchen');
-      await settle();
-      expect(mocks.native.resume).not.toHaveBeenCalled();
+    describe('a move from the phone left unconfirmed', () => {
+      async function moveUnconfirmed() {
+        state.setState(RelistenPlaybackState.Playing);
+        // The fake room leaves handoffs unconfirmed, as a drop does.
+        await session.moveQueueToRoom(handoffTo('g2'), 'Kitchen');
+        await settle();
+        expect(mocks.native.resume).not.toHaveBeenCalled();
+      }
 
-      await vi.advanceTimersByTimeAsync(NETWORK_LOSS_GRACE_MS - 1000);
-      await session.leaveRoomOffline();
-      await settle();
+      it('keeps playing on the phone when the network had gone, however late the exit runs', async () => {
+        const networkLostAt = Date.now();
+        await vi.advanceTimersByTimeAsync(1000);
+        await moveUnconfirmed();
+        // Suspended JavaScript can run the coordinator's timer long after the grace.
+        await vi.advanceTimersByTimeAsync(60_000);
 
-      expect(mocks.native.resume).toHaveBeenCalledTimes(1);
-      expect(messages()).toEqual(['You’re offline, so your queue stayed on this phone.']);
-    });
+        await session.leaveRoomOffline(networkLostAt);
+        await settle();
 
-    it('leaves the phone paused offline when the listener paused it after an unconfirmed move', async () => {
-      player.queue.replaceQueue(tracks, 0);
-      state.setState(RelistenPlaybackState.Playing);
-      await session.moveQueueToRoom(handoffTo('g2'), 'Kitchen');
-      await settle();
-      player.resume();
-      player.pause();
-      await settle();
-      mocks.native.resume.mockClear();
+        expect(mocks.native.resume).toHaveBeenCalledTimes(1);
+        expect(messages()).toEqual(['You’re offline, so your queue stayed on this phone.']);
+      });
 
-      await session.leaveRoomOffline();
-      await settle();
+      it('keeps playing on the phone when the phone reported the loss a few seconds late', async () => {
+        await moveUnconfirmed();
+        await vi.advanceTimersByTimeAsync(5000);
 
-      expect(mocks.native.resume).not.toHaveBeenCalled();
-    });
+        await session.leaveRoomOffline(Date.now());
+        await settle();
 
-    it('leaves the phone paused when a move went unconfirmed long before going offline', async () => {
-      player.queue.replaceQueue(tracks, 0);
-      state.setState(RelistenPlaybackState.Playing);
-      await session.moveQueueToRoom(handoffTo('g2'), 'Kitchen');
-      await settle();
+        expect(mocks.native.resume).toHaveBeenCalledTimes(1);
+      });
 
-      await vi.advanceTimersByTimeAsync(NETWORK_LOSS_GRACE_MS + 60_000);
-      await session.leaveRoomOffline();
-      await settle();
+      it('stays paused when the move failed long before the network went', async () => {
+        await moveUnconfirmed();
+        await vi.advanceTimersByTimeAsync(NETWORK_LOSS_GRACE_MS + 60_000);
 
-      expect(mocks.native.resume).not.toHaveBeenCalled();
-      expect(messages()).toEqual([]);
+        await session.leaveRoomOffline(Date.now());
+        await settle();
+
+        expect(mocks.native.resume).not.toHaveBeenCalled();
+        expect(messages()).toEqual([]);
+      });
+
+      it('stays paused when the listener turns on offline mode', async () => {
+        await moveUnconfirmed();
+
+        await session.leaveRoomOffline(undefined);
+        await settle();
+
+        expect(mocks.native.resume).not.toHaveBeenCalled();
+      });
+
+      it('stays paused when the listener played and paused the phone since', async () => {
+        await moveUnconfirmed();
+        player.resume();
+        player.pause();
+        await settle();
+        mocks.native.resume.mockClear();
+
+        await session.leaveRoomOffline(Date.now());
+        await settle();
+
+        expect(mocks.native.resume).not.toHaveBeenCalled();
+      });
+
+      it('follows the room instead once the phone controls one', async () => {
+        await moveUnconfirmed();
+        room.plays(tracks[0].identifier, { paused: true });
+        await settle();
+
+        await session.leaveRoomOffline(Date.now());
+        await settle();
+
+        expect(mocks.native.resume).not.toHaveBeenCalled();
+        expect(mocks.native.play).not.toHaveBeenCalled();
+      });
     });
 
     it('plays on the phone when it goes offline while the listener’s Play is on its way', async () => {

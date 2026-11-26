@@ -75,13 +75,14 @@ interface PhonePlace {
  * - `chosen`: the listener tapped This iPhone, or Cancel while connecting.
  *   Only this waits briefly for the room to say where it stopped.
  * - `offline`: the phone can't reach any room, so nothing is paused there,
- *   and the phone doesn't play while the room may still be playing.
+ *   and the phone doesn't play while the room may still be playing, except
+ *   after a move from the phone that the drop cut off (`networkLostAt`).
  * - `playHere`: a Play went to the phone (`whereToPlay`), and `play`
  *   fulfils it once the room is left.
  */
 type PhoneMove =
   | { reason: 'chosen' }
-  | { reason: 'offline' }
+  | { reason: 'offline'; networkLostAt: number | undefined }
   | { reason: 'playHere'; play: () => Promise<void> };
 
 /** Builds the phone's queue for the room's order (`queueTracksForRoom`). */
@@ -177,9 +178,10 @@ export class SonosSession {
   /**
    * A move from the phone that ended unconfirmed (`moveQueueToRoom`), which
    * leaves the phone paused, and whether the listener wanted music then. A
-   * network drop ends a handoff this way within seconds, before
-   * `leaveRoomOffline` runs; that call then carries on with the phone
-   * (`moveToPhone`). The listener's next Play or Pause clears it.
+   * network drop can end a handoff this way within seconds, before the
+   * coordinator calls `leaveRoomOffline`; that call then carries on with the
+   * phone (`moveCutOffByDrop`). Playing on the phone, or controlling a room,
+   * makes it moot, so either clears it.
    */
   private unconfirmedMove: { wanted: boolean; endedAt: number } | undefined;
   private saving: Promise<boolean> | undefined;
@@ -210,9 +212,11 @@ export class SonosSession {
         void this.saveQueue();
       }
     });
-    // The listener's own Play or Pause on the phone replaces a cut-off move's wish.
-    const removeStateListener = this.player.onStateChanged.addListener(() => {
-      this.unconfirmedMove = undefined;
+    // Once the phone plays, there is nothing left for a cut-off move to resume.
+    const removeStateListener = this.player.onStateChanged.addListener((state) => {
+      if (state === RelistenPlaybackState.Playing) {
+        this.unconfirmedMove = undefined;
+      }
     });
     this.onRoomChanged();
 
@@ -277,7 +281,6 @@ export class SonosSession {
     const play = transport.action === 'play';
     if (play || transport.action === 'pause') {
       this.wantsMusic = play;
-      this.unconfirmedMove = undefined;
     }
     try {
       await this.whileCommanding(async () => {
@@ -528,6 +531,8 @@ export class SonosSession {
       }
       return;
     }
+    // A room is in control now; leaving it follows that room's state.
+    this.unconfirmedMove = undefined;
     if (!this.active) {
       this.routeToRoom();
     }
@@ -1051,9 +1056,12 @@ export class SonosSession {
     return this.moveToPhone({ reason: 'chosen' });
   }
 
-  /** The phone can't reach any room: no network, or offline mode. */
-  leaveRoomOffline(): Promise<void> {
-    return this.moveToPhone({ reason: 'offline' });
+  /**
+   * The phone can't reach any room: no network, or offline mode.
+   * `networkLostAt` is when the network went, for a lost network only.
+   */
+  leaveRoomOffline(networkLostAt?: number): Promise<void> {
+    return this.moveToPhone({ reason: 'offline', networkLostAt });
   }
 
   /**
@@ -1077,7 +1085,7 @@ export class SonosSession {
     const offline = move.reason === 'offline';
     const room = this.store.getState();
     const handoff = this.store.getHandoffInFlight();
-    const cutOff = offline ? this.moveCutOffByDrop() : undefined;
+    const cutOff = offline ? this.moveCutOffByDrop(move.networkLostAt) : undefined;
     this.unconfirmedMove = undefined;
     // Read before abandoning the handoff, whose end repeats the paused reading of the room it left.
     const play = cutOff ? cutOff.wanted : this.wantsMusic && !(offline && mayStillPlay(room));
@@ -1121,13 +1129,18 @@ export class SonosSession {
 
   /**
    * The unconfirmed move from the phone that the network drop caused, if
-   * any. The coordinator leaves the room `NETWORK_LOSS_GRACE_MS` after the
-   * network goes, and the drop came before the handoff's failures, so a move
-   * that ended more than that long ago failed for some other reason.
+   * any. A drop fails the handoff after the network goes, so the move ended
+   * after `networkLostAt`. The phone may report the loss a few seconds late,
+   * hence the allowance before it; a move that ended earlier than that failed
+   * for another reason, and offline mode (no `networkLostAt`) is the
+   * listener's choice, not a drop.
    */
-  private moveCutOffByDrop(): { wanted: boolean } | undefined {
+  private moveCutOffByDrop(networkLostAt: number | undefined): { wanted: boolean } | undefined {
     const move = this.unconfirmedMove;
-    return move && Date.now() - move.endedAt <= NETWORK_LOSS_GRACE_MS ? move : undefined;
+    if (!move || networkLostAt === undefined) {
+      return undefined;
+    }
+    return move.endedAt >= networkLostAt - NETWORK_LOSS_GRACE_MS ? move : undefined;
   }
 
   /**
