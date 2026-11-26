@@ -66,7 +66,7 @@ import type { SonosHandoffOutcome } from './sonos_handoff';
 import type { SonosPlayback, SonosQueueEntry, SonosTransport } from './sonos_playback';
 import type { RoomQueueTracks } from './sonos_queue_tracks';
 import type { RoomLeftBehind, SonosRoomChoice, SonosRoomState } from './sonos_room_store';
-import { SonosSession } from './sonos_session';
+import { NETWORK_LOSS_GRACE_MS, SonosSession } from './sonos_session';
 import { STALE_ROOM_MS } from './sonos_where_to_play';
 
 function track(uuid: string, title: string) {
@@ -1398,6 +1398,52 @@ describe('SonosSession', () => {
 
       expect(mocks.native.resume).toHaveBeenCalledTimes(1);
       expect(messages()).toEqual(['You’re offline, so your queue stayed on this phone.']);
+    });
+
+    it('keeps playing on the phone when going offline left a move from it unconfirmed', async () => {
+      player.queue.replaceQueue(tracks, 0);
+      state.setState(RelistenPlaybackState.Playing);
+      // The drop cut off the handoff's answers before the network-loss grace ran out.
+      await session.moveQueueToRoom(handoffTo('g2'), 'Kitchen');
+      await settle();
+      expect(mocks.native.resume).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(NETWORK_LOSS_GRACE_MS - 1000);
+      await session.leaveRoomOffline();
+      await settle();
+
+      expect(mocks.native.resume).toHaveBeenCalledTimes(1);
+      expect(messages()).toEqual(['You’re offline, so your queue stayed on this phone.']);
+    });
+
+    it('leaves the phone paused offline when the listener paused it after an unconfirmed move', async () => {
+      player.queue.replaceQueue(tracks, 0);
+      state.setState(RelistenPlaybackState.Playing);
+      await session.moveQueueToRoom(handoffTo('g2'), 'Kitchen');
+      await settle();
+      player.resume();
+      player.pause();
+      await settle();
+      mocks.native.resume.mockClear();
+
+      await session.leaveRoomOffline();
+      await settle();
+
+      expect(mocks.native.resume).not.toHaveBeenCalled();
+    });
+
+    it('leaves the phone paused when a move went unconfirmed long before going offline', async () => {
+      player.queue.replaceQueue(tracks, 0);
+      state.setState(RelistenPlaybackState.Playing);
+      await session.moveQueueToRoom(handoffTo('g2'), 'Kitchen');
+      await settle();
+
+      await vi.advanceTimersByTimeAsync(NETWORK_LOSS_GRACE_MS + 60_000);
+      await session.leaveRoomOffline();
+      await settle();
+
+      expect(mocks.native.resume).not.toHaveBeenCalled();
+      expect(messages()).toEqual([]);
     });
 
     it('plays on the phone when it goes offline while the listener’s Play is on its way', async () => {

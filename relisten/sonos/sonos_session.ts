@@ -48,6 +48,13 @@ const PROGRESS_INTERVAL_MS = 1000;
  * the phone's position.
  */
 const TRANSFER_WAIT_MS = 3000;
+/**
+ * How long the network must stay gone before playback leaves the room
+ * (`leaveRoomOffline`, called by the coordinator). A switch from Wi-Fi to
+ * cellular can report no network for a moment, and leaving forgets the room,
+ * which plays on.
+ */
+export const NETWORK_LOSS_GRACE_MS = 10_000;
 /** How long to wait before asking the catalog again about a room's queue it couldn't build. */
 const LOOKUP_RETRY_MS = 30_000;
 /**
@@ -167,6 +174,14 @@ export class SonosSession {
    * nothing reads it.
    */
   private wantsMusic = false;
+  /**
+   * A move from the phone that ended unconfirmed (`moveQueueToRoom`), which
+   * leaves the phone paused, and whether the listener wanted music then. A
+   * network drop ends a handoff this way within seconds, before
+   * `leaveRoomOffline` runs; that call then carries on with the phone
+   * (`moveToPhone`). The listener's next Play or Pause clears it.
+   */
+  private unconfirmedMove: { wanted: boolean; endedAt: number } | undefined;
   private saving: Promise<boolean> | undefined;
   /** An edit arrived during a save; it goes out in one more save after it. */
   private saveAgain = false;
@@ -195,11 +210,16 @@ export class SonosSession {
         void this.saveQueue();
       }
     });
+    // The listener's own Play or Pause on the phone replaces a cut-off move's wish.
+    const removeStateListener = this.player.onStateChanged.addListener(() => {
+      this.unconfirmedMove = undefined;
+    });
     this.onRoomChanged();
 
     return () => {
       unsubscribe();
       removeQueueListener();
+      removeStateListener();
       this.buildRoomQueue = undefined;
       if (this.active) {
         // The room keeps playing; a session started again routes back to it.
@@ -229,10 +249,12 @@ export class SonosSession {
     }
 
     const wanted = this.player.state === RelistenPlaybackState.Playing;
+    const fromPhone = this.store.getState().kind === 'none';
     // Pausing a room goes through `transport`, which clears `wantsMusic`. The
     // pause only makes way for the new room, so the listener's wish is put back.
     this.player.pause();
     this.wantsMusic = wanted;
+    this.unconfirmedMove = undefined;
 
     const outcome = await this.store.handOff(request, groupName);
     // `wanted`, not `wantsMusic`: when the handoff ends, the store repeats the
@@ -240,6 +262,9 @@ export class SonosSession {
     // clears `wantsMusic` before this line runs.
     if (phoneMayResumeAfter(outcome) && wanted) {
       this.player.resume();
+    }
+    if (outcome.kind === 'uncertain' && fromPhone) {
+      this.unconfirmedMove = { wanted, endedAt: Date.now() };
     }
     return outcome;
   }
@@ -252,6 +277,7 @@ export class SonosSession {
     const play = transport.action === 'play';
     if (play || transport.action === 'pause') {
       this.wantsMusic = play;
+      this.unconfirmedMove = undefined;
     }
     try {
       await this.whileCommanding(async () => {
@@ -1043,20 +1069,25 @@ export class SonosSession {
    *    track and position it shows, playing if the listener wants music.
    *    Offline, a room that was playing may still be, and the phone can't
    *    stop it, so the phone waits rather than play in a second place.
+   *    A move from the phone that the drop cut off is the exception: the
+   *    phone plays even though the room may have taken the queue (Alec,
+   *    2026-11-26), and the toast says the queue stayed here.
    */
   private async moveToPhone(move: PhoneMove): Promise<void> {
     const offline = move.reason === 'offline';
     const room = this.store.getState();
     const handoff = this.store.getHandoffInFlight();
+    const cutOff = offline ? this.moveCutOffByDrop() : undefined;
+    this.unconfirmedMove = undefined;
     // Read before abandoning the handoff, whose end repeats the paused reading of the room it left.
-    const play = this.wantsMusic && !(offline && mayStillPlay(room));
+    const play = cutOff ? cutOff.wanted : this.wantsMusic && !(offline && mayStillPlay(room));
 
     this.abandonHandoff();
     if (room.kind === 'none') {
-      // No room to leave. Either a handoff from this phone was on its way
-      // (`moveQueueToRoom` paused the phone), or the room ended while the
-      // listener was asked where to play and `returnToPhone` stopped the phone.
-      if (handoff) {
+      // No room to leave. Either a move from this phone was on its way or was
+      // cut off (`moveQueueToRoom` paused the phone), or the room ended while
+      // the listener was asked where to play and `returnToPhone` stopped the phone.
+      if (handoff || cutOff) {
         if (offline) {
           showToast('You’re offline, so your queue stayed on this phone.', { tone: 'warning' });
         }
@@ -1086,6 +1117,17 @@ export class SonosSession {
       return;
     }
     await this.playOnPhone(stoppedAt ?? this.phoneSelection(), play);
+  }
+
+  /**
+   * The unconfirmed move from the phone that the network drop caused, if
+   * any. The coordinator leaves the room `NETWORK_LOSS_GRACE_MS` after the
+   * network goes, and the drop came before the handoff's failures, so a move
+   * that ended more than that long ago failed for some other reason.
+   */
+  private moveCutOffByDrop(): { wanted: boolean } | undefined {
+    const move = this.unconfirmedMove;
+    return move && Date.now() - move.endedAt <= NETWORK_LOSS_GRACE_MS ? move : undefined;
   }
 
   /**

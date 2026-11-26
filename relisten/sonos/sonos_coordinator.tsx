@@ -15,16 +15,9 @@ import { useRealm } from '@/relisten/realm/schema';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 import { queueTracksForRoom } from './sonos_queue_tracks';
 import { sonosRoom, useSonosRoomName } from './sonos_room_store';
-import { sonosSession } from './sonos_session';
+import { NETWORK_LOSS_GRACE_MS, sonosSession } from './sonos_session';
 
 const POLL_INTERVAL_MS = 4000;
-/**
- * How long the network must stay gone before playback leaves the room. A
- * switch from Wi-Fi to cellular can report no network for a moment, and
- * leaving forgets the room, which plays on.
- */
-const NETWORK_LOSS_GRACE_MS = 10_000;
-
 /** A remembered room is restored only when nothing else is playing. */
 const canRestoreRoom = () =>
   !isRemotePlayback() && RelistenPlayer.DEFAULT_INSTANCE.state !== RelistenPlaybackState.Playing;
