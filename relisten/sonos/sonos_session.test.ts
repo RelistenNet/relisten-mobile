@@ -277,6 +277,8 @@ describe('SonosSession', () => {
   let session: SonosSession;
   let stop: () => void;
   let tracks: PlayerQueueTrack[];
+  /** The question about where to play; it answers the room unless a test says otherwise. */
+  const ask = vi.fn<(roomName: string) => Promise<'room' | 'phone'>>();
   /** Every recording these tests use, as the catalog would find them. */
   let catalog: PlayerQueueTrack[];
   const buildRoomQueue = vi.fn(
@@ -303,7 +305,8 @@ describe('SonosSession', () => {
     player.queue.replaceQueue(tracks, undefined);
     room = new FakeRoom();
     room.queue = { version: 1, entries: tracks.map(entry) };
-    session = new SonosSession(player, room as never);
+    ask.mockReset().mockResolvedValue('room');
+    session = new SonosSession(player, room as never, ask);
     stop = session.start(buildRoomQueue);
   });
 
@@ -1029,6 +1032,109 @@ describe('SonosSession', () => {
       await settle();
       expect(room.readQueue).toHaveBeenCalledTimes(2);
       expect(player.queue.orderedTracks).toHaveLength(2);
+    });
+  });
+
+  describe('where Play goes', () => {
+    const SIXTEEN_MINUTES = 16 * 60_000;
+
+    it('plays on a playing room without asking', async () => {
+      room.plays(tracks[0].identifier);
+      await settle();
+      room.contact.lastUsedAt = Date.now() - SIXTEEN_MINUTES;
+
+      player.playTrackAtIndex(1);
+      await settle();
+
+      expect(ask).not.toHaveBeenCalled();
+      expect(room.command).toHaveBeenCalledWith({
+        action: 'skip',
+        occurrenceId: tracks[1].identifier,
+      });
+    });
+
+    it('plays on a room paused only a few minutes ago without asking', async () => {
+      room.plays(tracks[0].identifier, { paused: true });
+      await settle();
+      room.contact.lastUsedAt = Date.now() - 5 * 60_000;
+
+      player.resume();
+      await settle();
+
+      expect(ask).not.toHaveBeenCalled();
+      expect(room.command).toHaveBeenCalledWith({ action: 'play' });
+    });
+
+    it('asks about a room paused a while ago, and plays a tapped track on the phone', async () => {
+      room.plays(tracks[0].identifier, { paused: true });
+      await settle();
+      room.contact.lastUsedAt = Date.now() - SIXTEEN_MINUTES;
+      ask.mockResolvedValueOnce('phone');
+
+      player.playTrackAtIndex(1);
+      await settle();
+
+      expect(ask).toHaveBeenCalledWith('Office');
+      expect(room.command).not.toHaveBeenCalled();
+      expect(room.release).toHaveBeenCalled();
+      // It was paused, so there is nothing to pause behind it.
+      expect(room.pauseRoomLeftBehind).not.toHaveBeenCalled();
+      expect(playbackSource.lastState()).toBe(PlaybackSource.Native);
+      expect(mocks.native.play).toHaveBeenCalledTimes(1);
+      expect(mocks.native.play.mock.calls[0][0].identifier).toBe(tracks[1].identifier);
+    });
+
+    it('resumes on the phone when asked about a room paused a while ago', async () => {
+      room.plays(tracks[1].identifier, { paused: true, positionMillis: 42000 });
+      await settle();
+      room.contact.lastUsedAt = Date.now() - SIXTEEN_MINUTES;
+      ask.mockResolvedValueOnce('phone');
+
+      player.resume();
+      await settle();
+
+      expect(playbackSource.lastState()).toBe(PlaybackSource.Native);
+      expect(mocks.native.play).toHaveBeenCalledTimes(1);
+      expect(mocks.native.play.mock.calls[0][0].identifier).toBe(tracks[1].identifier);
+      expect(mocks.native.play.mock.calls[0][1]).toBe(42000);
+    });
+
+    it('plays on the room the listener keeps, and doesn’t ask again right after', async () => {
+      room.plays(tracks[0].identifier, { paused: true });
+      await settle();
+      room.contact.lastUsedAt = Date.now() - SIXTEEN_MINUTES;
+      room.noteChosen.mockImplementation(() => {
+        room.contact.lastUsedAt = Date.now();
+      });
+
+      player.resume();
+      await settle();
+      player.pause();
+      await settle();
+      player.resume();
+      await settle();
+
+      expect(ask).toHaveBeenCalledTimes(1);
+      expect(room.command.mock.calls.filter(([command]) => command.action === 'play')).toHaveLength(
+        2
+      );
+      expect(playbackSource.lastState()).toBe(PlaybackSource.Sonos);
+    });
+
+    it('plays on the phone, saying why, when the room can’t be reached', async () => {
+      room.plays(tracks[0].identifier);
+      await settle();
+      room.contact.lastReadFailed = true;
+
+      player.playTrackAtIndex(1);
+      await settle();
+
+      expect(ask).not.toHaveBeenCalled();
+      expect(playbackSource.lastState()).toBe(PlaybackSource.Native);
+      expect(mocks.native.play.mock.calls[0][0].identifier).toBe(tracks[1].identifier);
+      // Its last reading said it was playing, so it is paused if it can be reached.
+      expect(room.pauseRoomLeftBehind).toHaveBeenCalledWith('h1');
+      expect(messages()).toEqual(['Office can’t be reached, so this is playing on your phone.']);
     });
   });
 
