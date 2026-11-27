@@ -183,11 +183,6 @@ export class SonosRoomStore {
   private reading: { handle: string; playback: Promise<SonosPlayback | undefined> } | undefined;
   /** Each group's last volume this run, shown while the room is read again. */
   private readonly volumes = new Map<string, SonosVolume>();
-  /**
-   * Room names from the latest room list, by group ID. The server keeps the
-   * name a group had when the queue moved there, and Sonos keeps a group's ID
-   * while speakers join or leave it, so the list's name is the current one.
-   */
   private readonly subscribers = new Set<Subscriber>();
   private api: AuthorizedAccountsApiClient | undefined;
   private account: string | undefined;
@@ -514,7 +509,7 @@ export class SonosRoomStore {
         this.remember(undefined);
       } else if (isSonosPlaying(playback) && canRestore()) {
         this.apply(playback);
-        // The server's name dates from the handoff; the list has the current one.
+        // Refresh the server's group names when restoring a saved room.
         await this.readRoomList();
       }
       // A live room that isn't restored now (paused, or the phone started

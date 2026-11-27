@@ -184,6 +184,20 @@ describe('SonosRoomStore', () => {
       expect(sonosRoomName(remote.getState())).toBe('Living Room + 3');
     });
 
+    it('reads the saved name even when an older playback read is still in flight', async () => {
+      const { server, remote } = await adopted();
+      const release = server.holdNext('GET /v1/integrations/sonos/playback/h1');
+      const oldRead = remote.refresh();
+      await flush();
+
+      server.room.groupName = 'Living Room + 3';
+      const regroup = remote.noteRooms(regrouped);
+      release();
+      await Promise.all([oldRead, regroup]);
+
+      expect(sonosRoomName(remote.getState())).toBe('Living Room + 3');
+    });
+
     it('reads the room list when the app returns to a room it controls', async () => {
       const { server, remote } = await adopted();
       server.groups = [{ id: 'g1', name: 'Living Room + 3', household_id: 'house-1' }];
