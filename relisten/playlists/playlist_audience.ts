@@ -1,9 +1,20 @@
+import type { Playlist } from '@/relisten/realm/models/playlists/playlist';
 import type { PopularityResource } from '@/relisten/api/catalog/resources';
 
 export interface PlaylistAudience {
   follower_count?: number | null;
   popularity?: PopularityResource | null;
   popularity_as_of?: string | null;
+}
+
+export function hasPublicPlaylistAudience(
+  playlist: Pick<Playlist, 'access' | 'published' | 'takenDown' | 'unavailable' | 'archived'>
+): boolean {
+  return (
+    !playlist.unavailable &&
+    (playlist.access === 'follower' ||
+      (playlist.published && !playlist.takenDown && !playlist.archived))
+  );
 }
 
 export function playlistAudienceLabel(audience?: PlaylistAudience | null) {

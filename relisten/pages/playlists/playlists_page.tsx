@@ -1,3 +1,4 @@
+import { hasPublicPlaylistAudience } from '@/relisten/playlists/playlist_audience';
 import { useLibraryPlaylistAudience } from '@/relisten/playlists/ui/playlist_audience';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, Stack, useRouter } from 'expo-router';
@@ -115,7 +116,9 @@ export default function PlaylistsPage() {
   const router = useRouter();
   const playlists = usePlaylists();
   const isFavorite = useIsFavoritePlaylist();
-  const audience = useLibraryPlaylistAudience();
+  const audience = useLibraryPlaylistAudience(
+    playlists.filter(hasPublicPlaylistAudience).map((playlist) => playlist.playlistId)
+  );
   const summaryOf = usePlaylistSummaries(playlists);
   const items = useMemo(
     () =>
@@ -157,9 +160,7 @@ export default function PlaylistsPage() {
                 summary={item.summary}
                 favorite={item.favorite}
                 audience={
-                  item.playlist.published && !item.playlist.takenDown && !item.playlist.unavailable
-                    ? audience?.get(item.uuid)
-                    : undefined
+                  hasPublicPlaylistAudience(item.playlist) ? audience?.get(item.uuid) : undefined
                 }
               />
             )}

@@ -1,3 +1,4 @@
+import { hasPublicPlaylistAudience } from '@/relisten/playlists/playlist_audience';
 import { usePublicPlaylistAudience } from '@/relisten/playlists/ui/playlist_audience';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -74,7 +75,7 @@ export default function PlaylistDetailPage() {
   // the refused favorite shows as needing attention in favorites sync.
   const favorite = useFavorite('playlist', playlistId);
   const audience = usePublicPlaylistAudience(
-    playlist?.published && playlist.access === 'owner' ? playlist.publicCode : null
+    playlist?.access === 'owner' && hasPublicPlaylistAudience(playlist) ? playlist.publicCode : null
   );
 
   // A followed playlist its owner made private keeps its last rows, hidden; don't fetch them.
