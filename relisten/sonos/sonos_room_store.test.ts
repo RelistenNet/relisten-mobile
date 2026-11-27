@@ -171,22 +171,23 @@ describe('SonosRoomStore', () => {
   });
 
   describe('the room list', () => {
-    // Sonos keeps a group's ID when speakers join it; the server keeps the old name.
+    // Sonos keeps a group's ID when speakers join it.
     const regrouped = [{ id: 'g1', name: 'Living Room + 3' }];
 
-    it('shows the listed name of a room that was regrouped', async () => {
-      const { remote } = await adopted();
-
-      remote.noteRooms(regrouped);
+    it('reads a changed name from playback after the groups endpoint saves it', async () => {
+      const { server, remote } = await adopted();
+      server.room.groupName = 'Living Room + 3';
+      await remote.noteRooms(regrouped);
       expect(sonosRoomName(remote.getState())).toBe('Living Room + 3');
 
-      await remote.refresh();
+      await remote.noteRooms([{ id: 'g1', name: 'Old Name' }]);
       expect(sonosRoomName(remote.getState())).toBe('Living Room + 3');
     });
 
     it('reads the room list when the app returns to a room it controls', async () => {
       const { server, remote } = await adopted();
       server.groups = [{ id: 'g1', name: 'Living Room + 3', household_id: 'house-1' }];
+      server.room.groupName = 'Living Room + 3';
 
       await remote.discover(() => true);
 
@@ -197,6 +198,7 @@ describe('SonosRoomStore', () => {
       const { server, remote } = store('h1');
       server.room.playbackState = 'PLAYBACK_STATE_PLAYING';
       server.groups = [{ id: 'g1', name: 'Living Room + 3', household_id: 'house-1' }];
+      server.room.groupName = 'Living Room + 3';
 
       await remote.discover(() => true);
 
@@ -227,9 +229,9 @@ describe('SonosRoomStore', () => {
       expect(sonosRoomName(remote.getState())).toBe('Alec’s Office');
     });
 
-    it('forgets listed names when the account changes', async () => {
+    it('discards a room-name read when the account changes', async () => {
       const { server, remote, switchAccount } = await adopted();
-      remote.noteRooms(regrouped);
+      void remote.noteRooms(regrouped);
       switchAccount();
       remote.bind(server as never, () => true, 'user-1');
 

@@ -188,7 +188,6 @@ export class SonosRoomStore {
    * name a group had when the queue moved there, and Sonos keeps a group's ID
    * while speakers join or leave it, so the list's name is the current one.
    */
-  private listedNames = new Map<string, string>();
   private readonly subscribers = new Set<Subscriber>();
   private api: AuthorizedAccountsApiClient | undefined;
   private account: string | undefined;
@@ -238,36 +237,22 @@ export class SonosRoomStore {
     this.handedOff = undefined;
     this.reading = undefined;
     this.contact = NO_CONTACT;
-    this.listedNames = new Map();
     this.set({ kind: 'none' });
   }
 
-  /**
-   * Takes in a fresh room list. The controlled room shows its listed name.
-   * A room missing from the list may have been ungrouped, so it is read
-   * again; the server ends control if the room no longer plays the queue.
-   * Absence alone doesn't end it, since the list may be older than the read.
-   */
-  noteRooms(groups: readonly { id: string; name: string }[]) {
-    this.listedNames = new Map(groups.map((group) => [group.id, group.name]));
+  /** The groups endpoint has saved the list. Let playback read its current name. */
+  async noteRooms(groups: readonly { id: string; name: string }[]) {
+    const scope = this.roomScope();
+    const state = this.state;
+    const room = controlledRoom(state);
+    if (!scope || !room || state.kind === 'none') return;
 
-    const current = this.state;
-    const room = controlledRoom(current);
-    if (!room) {
-      return;
-    }
+    const shownName = state.kind === 'active' ? state.playback.groupName : state.groupName;
+    if (groups.find((group) => group.id === room.groupId)?.name === shownName) return;
 
-    const listedName = this.listedNames.get(room.groupId);
-    if (listedName === undefined) {
-      void this.refresh();
-      return;
-    }
-
-    if (current.kind === 'active' && current.playback.groupName !== listedName) {
-      this.set({ ...current, playback: { ...current.playback, groupName: listedName } });
-    } else if (current.kind === 'checking' && current.groupName !== listedName) {
-      this.set({ ...current, groupName: listedName });
-    }
+    // An in-flight read could have started before the groups response saved the name.
+    if (this.reading?.handle === scope.handle) await this.reading.playback;
+    if (scope.stillCurrent()) await this.refresh();
   }
 
   /** Reads the room list for `noteRooms`; a failed read changes nothing. */
@@ -280,7 +265,7 @@ export class SonosRoomStore {
     try {
       const groups = await fetchSonosGroups(scope.api);
       if (scope.stillCurrent()) {
-        this.noteRooms(groups);
+        await this.noteRooms(groups);
       }
     } catch {
       // The next foreground or Play On tries again.
@@ -860,8 +845,7 @@ export class SonosRoomStore {
   }
 
   /** Shows a reading of the current handle, and resolves the reading now shown. */
-  private apply(reading: SonosPlayback): SonosPlayback | undefined {
-    const playback = this.withListedName(reading);
+  private apply(playback: SonosPlayback): SonosPlayback | undefined {
     if (!isSonosPlaybackLive(playback)) {
       this.endPlayback({
         roomName: playback.groupName,
@@ -913,13 +897,6 @@ export class SonosRoomStore {
     };
     this.set({ ...current, playback });
     return playback;
-  }
-
-  private withListedName(playback: SonosPlayback): SonosPlayback {
-    const listedName = this.listedNames.get(playback.groupId);
-    return listedName === undefined || listedName === playback.groupName
-      ? playback
-      : { ...playback, groupName: listedName };
   }
 
   private showVolume(current: ActiveRoom, volume: SonosVolume) {

@@ -81,7 +81,7 @@ export function useSonosOutput() {
         current.kind === 'linked' ? current : { kind: 'linked', groups: undefined }
       );
       const groups = await fetchSonosGroups(api);
-      sonosRoom.noteRooms(groups);
+      void sonosRoom.noteRooms(groups);
       if (mounted.current) {
         setConnection({ kind: 'linked', groups });
       }
