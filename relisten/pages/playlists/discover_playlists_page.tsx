@@ -2,9 +2,11 @@ import { Link, Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { FlatList, View } from 'react-native';
 import { useAccountsApiClient } from '@/relisten/accounts/account_context';
+import { ItemSeparator } from '@/relisten/components/item_separator';
 import { ListRow } from '@/relisten/components/list_row';
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import { RelistenText } from '@/relisten/components/relisten_text';
+import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
 import {
   playlistAudienceLabel,
   type PlaylistAudience,
@@ -33,6 +35,7 @@ export default function DiscoverPlaylistsPage() {
   const [page, setPage] = useState<{ sort: Sort; rows: Card[]; next: string | null }>();
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
+  const scrollProps = usePlayerBottomScrollViewProps({});
 
   useEffect(() => {
     if (!online) return;
@@ -73,61 +76,79 @@ export default function DiscoverPlaylistsPage() {
   }, [api, online, request]);
 
   const current = page?.sort === request.sort ? page : undefined;
-  return (
-    <View className="flex-1 bg-relisten-blue-900">
-      <Stack.Screen options={{ title: 'Discover Playlists' }} />
-      <View className="flex-row flex-wrap gap-2 p-3">
-        {(Object.keys(sorts) as Sort[]).map((sort) => (
+
+  // The chips live in the list header so the list's automatic inset keeps
+  // them below the navigation bar, like the other playlist screens.
+  const sortChips = (
+    <View className="flex-row flex-wrap gap-2 p-3">
+      {(Object.keys(sorts) as Sort[]).map((sort) => {
+        const selected = sort === request.sort;
+
+        return (
           <RelistenButton
             key={sort}
-            disabled={sort === request.sort}
-            onPress={() => setRequest({ sort })}
+            intent={selected ? 'primary' : 'none'}
+            accessibilityState={{ selected }}
+            onPress={() => {
+              if (!selected) {
+                setRequest({ sort });
+              }
+            }}
           >
             {sorts[sort]}
           </RelistenButton>
-        ))}
-      </View>
-      {!online ? (
-        <RelistenText className="p-4">Connect to the internet to browse playlists.</RelistenText>
-      ) : (
-        <FlatList
-          data={current?.rows ?? []}
-          keyExtractor={(card) => card.playlist_id}
-          renderItem={({ item }) => (
-            <Link
-              href={{
-                pathname: `/relisten/tabs/${group}/playlists/shared/[publicCode]`,
-                params: { publicCode: item.public_code },
-              }}
-              asChild
+        );
+      })}
+    </View>
+  );
+
+  return (
+    <View className="flex-1 bg-relisten-blue-900">
+      <Stack.Screen options={{ title: 'Discover Playlists' }} />
+      <FlatList
+        data={online ? (current?.rows ?? []) : []}
+        keyExtractor={(card) => card.playlist_id}
+        ItemSeparatorComponent={ItemSeparator}
+        ListHeaderComponent={sortChips}
+        renderItem={({ item }) => (
+          <Link
+            href={{
+              pathname: `/relisten/tabs/${group}/playlists/shared/[publicCode]`,
+              params: { publicCode: item.public_code },
+            }}
+            asChild
+          >
+            <ListRow
+              title={item.name}
+              subtitle={[`@${item.owner.username}`, playlistAudienceLabel(item)]
+                .filter(Boolean)
+                .join(' · ')}
+            />
+          </Link>
+        )}
+        ListEmptyComponent={
+          !online ? (
+            <RelistenText className="p-4">
+              Connect to the internet to browse playlists.
+            </RelistenText>
+          ) : !loading && !error ? (
+            <RelistenText className="p-4">No public playlists yet.</RelistenText>
+          ) : undefined
+        }
+        ListFooterComponent={
+          !online ? undefined : error ? (
+            <RelistenButton onPress={() => setRequest({ ...request })}>Try Again</RelistenButton>
+          ) : current?.next ? (
+            <RelistenButton
+              disabled={loading}
+              onPress={() => setRequest({ sort: request.sort, cursor: current.next! })}
             >
-              <ListRow
-                title={item.name}
-                subtitle={[`@${item.owner.username}`, playlistAudienceLabel(item)]
-                  .filter(Boolean)
-                  .join(' · ')}
-              />
-            </Link>
-          )}
-          ListEmptyComponent={
-            !loading && !error ? (
-              <RelistenText className="p-4">No public playlists yet.</RelistenText>
-            ) : undefined
-          }
-          ListFooterComponent={
-            error ? (
-              <RelistenButton onPress={() => setRequest({ ...request })}>Try Again</RelistenButton>
-            ) : current?.next ? (
-              <RelistenButton
-                disabled={loading}
-                onPress={() => setRequest({ sort: request.sort, cursor: current.next! })}
-              >
-                Load More
-              </RelistenButton>
-            ) : undefined
-          }
-        />
-      )}
+              Load More
+            </RelistenButton>
+          ) : undefined
+        }
+        {...scrollProps}
+      />
     </View>
   );
 }
