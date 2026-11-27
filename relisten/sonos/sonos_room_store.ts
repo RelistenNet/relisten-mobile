@@ -236,21 +236,29 @@ export class SonosRoomStore {
   }
 
   /** The groups endpoint has saved the list. Let playback read its current name. */
-  async noteRooms(groups: readonly { id: string; name: string }[]) {
+  async refreshPlaybackAfterRoomList(groups: readonly { id: string; name: string }[]) {
     const scope = this.roomScope();
     const state = this.state;
     const room = controlledRoom(state);
-    if (!scope || !room || state.kind === 'none') return;
+    if (!scope || !room || state.kind === 'none') {
+      return;
+    }
 
     const shownName = state.kind === 'active' ? state.playback.groupName : state.groupName;
-    if (groups.find((group) => group.id === room.groupId)?.name === shownName) return;
+    if (groups.find((group) => group.id === room.groupId)?.name === shownName) {
+      return;
+    }
 
     // An in-flight read could have started before the groups response saved the name.
-    if (this.reading?.handle === scope.handle) await this.reading.playback;
-    if (scope.stillCurrent()) await this.refresh();
+    if (this.reading?.handle === scope.handle) {
+      await this.reading.playback;
+    }
+    if (scope.stillCurrent()) {
+      await this.refresh();
+    }
   }
 
-  /** Reads the room list for `noteRooms`; a failed read changes nothing. */
+  /** Reads the room list for `refreshPlaybackAfterRoomList`; a failed read changes nothing. */
   private async readRoomList() {
     const scope = this.accountScope();
     if (!scope) {
@@ -260,7 +268,7 @@ export class SonosRoomStore {
     try {
       const groups = await fetchSonosGroups(scope.api);
       if (scope.stillCurrent()) {
-        await this.noteRooms(groups);
+        await this.refreshPlaybackAfterRoomList(groups);
       }
     } catch {
       // The next foreground or Play On tries again.

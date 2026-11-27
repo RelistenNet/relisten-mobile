@@ -177,10 +177,10 @@ describe('SonosRoomStore', () => {
     it('reads a changed name from playback after the groups endpoint saves it', async () => {
       const { server, remote } = await adopted();
       server.room.groupName = 'Living Room + 3';
-      await remote.noteRooms(regrouped);
+      await remote.refreshPlaybackAfterRoomList(regrouped);
       expect(sonosRoomName(remote.getState())).toBe('Living Room + 3');
 
-      await remote.noteRooms([{ id: 'g1', name: 'Old Name' }]);
+      await remote.refreshPlaybackAfterRoomList([{ id: 'g1', name: 'Old Name' }]);
       expect(sonosRoomName(remote.getState())).toBe('Living Room + 3');
     });
 
@@ -191,7 +191,7 @@ describe('SonosRoomStore', () => {
       await flush();
 
       server.room.groupName = 'Living Room + 3';
-      const regroup = remote.noteRooms(regrouped);
+      const regroup = remote.refreshPlaybackAfterRoomList(regrouped);
       release();
       await Promise.all([oldRead, regroup]);
 
@@ -223,7 +223,7 @@ describe('SonosRoomStore', () => {
       const { server, remote } = await adopted();
       server.room.status = 'evicted';
 
-      remote.noteRooms([{ id: 'g2', name: 'Kitchen' }]);
+      remote.refreshPlaybackAfterRoomList([{ id: 'g2', name: 'Kitchen' }]);
       await flush();
 
       expect(remote.getState()).toEqual({
@@ -236,7 +236,7 @@ describe('SonosRoomStore', () => {
       const { server, remote } = await adopted();
       const reads = server.requestsTo('GET /v1/integrations/sonos/playback/h1');
 
-      remote.noteRooms([{ id: 'g2', name: 'Kitchen' }]);
+      remote.refreshPlaybackAfterRoomList([{ id: 'g2', name: 'Kitchen' }]);
       await flush();
 
       expect(server.requestsTo('GET /v1/integrations/sonos/playback/h1')).toBe(reads + 1);
@@ -245,7 +245,7 @@ describe('SonosRoomStore', () => {
 
     it('discards a room-name read when the account changes', async () => {
       const { server, remote, switchAccount } = await adopted();
-      void remote.noteRooms(regrouped);
+      void remote.refreshPlaybackAfterRoomList(regrouped);
       switchAccount();
       remote.bind(server as never, () => true, 'user-1');
 
