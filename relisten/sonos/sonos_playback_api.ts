@@ -63,7 +63,16 @@ export async function fetchSonosQueue(
 
   const entries = rows.flatMap((row: Record<string, unknown> | null) =>
     typeof row?.occurrence_id === 'string' && typeof row.track_id === 'string'
-      ? [{ occurrenceId: row.occurrence_id, trackId: row.track_id }]
+      ? [
+          {
+            occurrenceId: row.occurrence_id,
+            trackId: row.track_id,
+            ...(typeof row.playlist_id === 'string' ? { playlistId: row.playlist_id } : {}),
+            ...(typeof row.playlist_entry_id === 'string'
+              ? { playlistEntryId: row.playlist_entry_id }
+              : {}),
+          },
+        ]
       : []
   );
   if (entries.length !== rows.length) {

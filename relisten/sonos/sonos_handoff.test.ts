@@ -8,6 +8,7 @@ vi.mock('expo-crypto', () => ({
   getRandomValues: (bytes: Uint8Array) => bytes,
 }));
 
+import { formatUuidTypedId } from '@/relisten/util/typed_uuid_id';
 import { AccountsApiError } from '@/relisten/accounts/api/accounts_api_client';
 import { handoffRequest, phoneMayResumeAfter, runSonosHandoff } from './sonos_handoff';
 
@@ -71,6 +72,30 @@ describe('handoffRequest', () => {
     expect(result?.occurrences.map((entry) => entry.occurrence_id)).toEqual(['q1', 'q2', 'q3']);
     expect(result?.occurrences[0].track_id).toBe(result?.occurrences[2].track_id);
     expect(result?.position_millis).toBe(12400);
+  });
+
+  it('sends a playlist occurrence and leaves an ordinary occurrence unattributed', () => {
+    const playlistId = formatUuidTypedId('playlist', '018f28a4-0000-7000-8000-000000000001');
+    const entryId = formatUuidTypedId('playlist_entry', '018f28a4-0000-7000-8000-000000000002');
+    const result = handoffRequest({
+      requestId: 'req-1',
+      groupId: 'group-1',
+      currentIdentifier: 'q1',
+      positionSeconds: 0,
+      tracks: [
+        {
+          identifier: 'q1',
+          sourceTrack: { uuid: UUID_A },
+          playlistContext: { playlistId, entryId, segmentInstanceId: 'segment' },
+        },
+        { identifier: 'q2', sourceTrack: { uuid: UUID_A } },
+      ],
+    });
+    expect(result?.occurrences[0]).toMatchObject({
+      playlist_id: playlistId,
+      playlist_entry_id: entryId,
+    });
+    expect(result?.occurrences[1]).not.toHaveProperty('playlist_id');
   });
 
   it('has nothing to send when no occurrence is playing', () => {

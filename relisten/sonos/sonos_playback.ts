@@ -7,6 +7,8 @@
 // together. Fields keep Sonos's names (`groupId`, `groupName`).
 
 import { trackIdForSourceTrack } from '@/relisten/realm/catalog_track_id';
+import { isUuidV7TypedId } from '@/relisten/util/typed_uuid_id';
+import type { PlaylistQueueContext } from '@/relisten/player/relisten_player_queue';
 
 /** The queue occurrence the room is playing. */
 export interface SonosOccurrence {
@@ -61,6 +63,8 @@ export interface SonosVolume {
 export interface SonosQueueEntry {
   occurrenceId: string;
   trackId: string;
+  playlistId?: string;
+  playlistEntryId?: string;
 }
 
 /** The room's queue in order, as of `version`. */
@@ -73,11 +77,21 @@ export interface SonosQueue {
 export interface QueueOccurrence {
   identifier: string;
   sourceTrack: { uuid: string };
+  playlistContext?: PlaylistQueueContext;
 }
 
 /** The room's entry for a phone queue occurrence. The phone's identifier is the occurrence ID. */
 export function sonosQueueEntry(track: QueueOccurrence): SonosQueueEntry {
-  return { occurrenceId: track.identifier, trackId: trackIdForSourceTrack(track.sourceTrack) };
+  const playlist = track.playlistContext;
+  return {
+    occurrenceId: track.identifier,
+    trackId: trackIdForSourceTrack(track.sourceTrack),
+    ...(playlist &&
+    isUuidV7TypedId(playlist.playlistId, 'playlist') &&
+    isUuidV7TypedId(playlist.entryId, 'playlist_entry')
+      ? { playlistId: playlist.playlistId, playlistEntryId: playlist.entryId }
+      : {}),
+  };
 }
 
 /** Queue entries as the User Service's handoff and queue routes take them. */
@@ -85,6 +99,8 @@ export function wireOccurrences(entries: readonly SonosQueueEntry[]) {
   return entries.map((entry) => ({
     occurrence_id: entry.occurrenceId,
     track_id: entry.trackId,
+    ...(entry.playlistId ? { playlist_id: entry.playlistId } : {}),
+    ...(entry.playlistEntryId ? { playlist_entry_id: entry.playlistEntryId } : {}),
   }));
 }
 

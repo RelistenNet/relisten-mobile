@@ -60,7 +60,16 @@ export async function queueTracksForRoom(
     if (existing) {
       tracks.push(existing);
     } else if (sourceTrack) {
-      tracks.push(PlayerQueueTrack.fromSourceTrack(sourceTrack, entry.occurrenceId));
+      const track = PlayerQueueTrack.fromSourceTrack(sourceTrack, entry.occurrenceId);
+      if (entry.playlistId && entry.playlistEntryId) {
+        track.playlistContext = {
+          playlistId: entry.playlistId,
+          entryId: entry.playlistEntryId,
+          // The room carries attribution. The original phone's shuffle groups are local.
+          segmentInstanceId: entry.occurrenceId,
+        };
+      }
+      tracks.push(track);
     } else {
       // The catalog answered but the recording still isn't stored completely.
       return { kind: 'unreachable' };
