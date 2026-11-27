@@ -1,3 +1,4 @@
+import { playlistAudienceLabel } from '@/relisten/playlists/playlist_audience';
 import { decodeUuidCatalogId } from '@/relisten/api/catalog/identity';
 import type { ShowSummaryResource, SourceSummaryResource } from '@/relisten/api/catalog/resources';
 import type { ShowRowFields } from '@/relisten/components/shows_list';
@@ -116,6 +117,7 @@ export function namedRowSubtitle(
 export function playlistCardSubtitle(card: SearchPlaylistCard): string {
   return joined(
     playlistSizeLine(card.track_count, 0),
+    playlistAudienceLabel(card),
     card.curator ? `@${card.curator}` : card.owned ? 'Yours' : undefined
   );
 }

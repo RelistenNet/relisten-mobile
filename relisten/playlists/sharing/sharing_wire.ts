@@ -1,3 +1,4 @@
+import type { PlaylistAudience } from '@/relisten/playlists/playlist_audience';
 import type { PlaylistSnapshotResponse } from '@/relisten/playlists/sync/playlist_wire';
 import { isUuidV7TypedId } from '@/relisten/util/typed_uuid_id';
 
@@ -23,7 +24,7 @@ export interface PublicPlaylistOwner {
 }
 
 /** The authored structure of a public playlist, read without credentials. */
-export interface PublicPlaylistSnapshot {
+export interface PublicPlaylistSnapshot extends PlaylistAudience {
   contract_version: 1;
   history_generation: string;
   playlist_id: string;
@@ -40,14 +41,14 @@ export interface PublicPlaylistSnapshot {
  * deleted) carries only its ID.
  */
 export type FollowedPlaylistHead =
-  | {
+  | ({
       playlist_id: string;
       available: true;
       public_code: string;
       name: string;
       owner: PublicPlaylistOwner;
       revision: number;
-    }
+    } & PlaylistAudience)
   | { playlist_id: string; available: false };
 
 export interface PlaylistPublicationResponse {

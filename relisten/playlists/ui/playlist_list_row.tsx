@@ -1,3 +1,4 @@
+import { playlistAudienceLabel, type PlaylistAudience } from '../playlist_audience';
 import { ListRow } from '@/relisten/components/list_row';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { View } from 'react-native';
@@ -25,11 +26,13 @@ export function PlaylistListRow({
   summary,
   favorite,
   compact = false,
+  audience,
 }: {
   playlist: Playlist;
   summary: PlaylistSummary;
   favorite: boolean;
   compact?: boolean;
+  audience?: PlaylistAudience;
 }) {
   const groupSegment = useGroupSegment();
   const artists = artistLine(summary.artistNames);
@@ -40,7 +43,8 @@ export function PlaylistListRow({
     ? 'No longer available'
     : playlistSizeLine(playlist.entryCount, summary.durationSeconds);
   const owner = followed && playlist.ownerUsername ? `@${playlist.ownerUsername}` : '';
-  const details = [owner, artists].filter(Boolean).join(' · ');
+  const audienceLabel = playlistAudienceLabel(audience);
+  const details = [owner, artists, audienceLabel].filter(Boolean).join(' · ');
 
   return (
     <Link
@@ -57,6 +61,7 @@ export function PlaylistListRow({
           size,
           owner,
           artists,
+          audienceLabel,
           summary.allDownloaded ? 'Downloaded' : '',
         ]
           .filter(Boolean)

@@ -1,3 +1,4 @@
+import { usePublicPlaylistAudience } from '@/relisten/playlists/ui/playlist_audience';
 import { Stack } from 'expo-router';
 import { useState } from 'react';
 import { Alert, View } from 'react-native';
@@ -37,6 +38,7 @@ export function FollowedPlaylistView({
   const [downloadedOnly, setDownloadedOnly] = useState(false);
   const search = usePlaylistSearch();
   const { playlistId, publicCode, unavailable } = playlist;
+  const audience = usePublicPlaylistAudience(unavailable ? null : publicCode);
   const name = playlistDisplayName(playlist);
   // Sharing and copying go through the playlist's public link. A followed
   // playlist that is still available has one; without it, say why not.
@@ -87,6 +89,7 @@ export function FollowedPlaylistView({
             name={name}
             byline={playlist.ownerUsername ? `by @${playlist.ownerUsername}` : undefined}
             description={playlist.description}
+            audience={audience}
             trackCount={playlist.entryCount}
             groups={groups}
             actions={{

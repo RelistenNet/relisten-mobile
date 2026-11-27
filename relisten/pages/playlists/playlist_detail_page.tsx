@@ -1,3 +1,4 @@
+import { usePublicPlaylistAudience } from '@/relisten/playlists/ui/playlist_audience';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -72,6 +73,9 @@ export default function PlaylistDetailPage() {
   // Until the server adds the `playlist` favorite kind it refuses these, and
   // the refused favorite shows as needing attention in favorites sync.
   const favorite = useFavorite('playlist', playlistId);
+  const audience = usePublicPlaylistAudience(
+    playlist?.published && playlist.access === 'owner' ? playlist.publicCode : null
+  );
 
   // A followed playlist its owner made private keeps its last rows, hidden; don't fetch them.
   usePlaylistHydration(playlistId, playlist?.unavailable ? [] : allGroups, online);
@@ -285,6 +289,7 @@ export default function PlaylistDetailPage() {
               name={name}
               byline={sharingLine(playlist)}
               description={playlist.description}
+              audience={audience}
               trackCount={playlist.entryCount}
               groups={allGroups}
               notice={<PlaylistSyncNotice playlist={playlist} />}

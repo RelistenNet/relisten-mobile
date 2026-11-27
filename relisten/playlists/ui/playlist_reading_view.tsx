@@ -1,3 +1,5 @@
+import { PlaylistAudienceDetail } from './playlist_audience';
+import type { PlaylistAudience } from '../playlist_audience';
 import { MaterialIcons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -254,6 +256,7 @@ export function PlaylistViewHeader({
   playlistId,
   name,
   byline,
+  audience,
   description,
   trackCount,
   groups,
@@ -264,6 +267,7 @@ export function PlaylistViewHeader({
   name: string;
   /** "by @username", for a playlist someone else made. */
   byline?: string;
+  audience?: PlaylistAudience;
   description?: string;
   trackCount: number;
   groups: PlaylistRowGroup[];
@@ -331,6 +335,7 @@ export function PlaylistViewHeader({
           .join(' • ')}
       </RelistenText>
 
+      <PlaylistAudienceDetail audience={audience} />
       {notice}
       <View className="w-full flex-row pb-4" style={{ gap: 16 }}>
         <RelistenButton

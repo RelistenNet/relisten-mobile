@@ -69,7 +69,7 @@ export function buildRemoteListItems(
   const { catalog, playlists, rows } = presentation;
   const items: SearchListItem[] = rows.map((row) =>
     row.kind === 'playlist'
-      ? { type: 'playlist', key: row.key, card: row.playlist }
+      ? { type: 'playlist', key: row.key, card: { ...row.playlist, popularity: row.popularity } }
       : { type: 'row', key: row.key, row }
   );
 

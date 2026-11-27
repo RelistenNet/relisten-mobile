@@ -167,6 +167,7 @@ export default function PublicPlaylistPage() {
             name={name}
             byline={`by @${snapshot.owner.username}`}
             description={snapshot.metadata.description ?? undefined}
+            audience={snapshot}
             trackCount={publicTrackCount(snapshot)}
             groups={groups}
             actions={{

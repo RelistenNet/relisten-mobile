@@ -1,3 +1,4 @@
+import type { PlaylistAudience } from '@/relisten/playlists/playlist_audience';
 import type {
   ArtistResource,
   CatalogPerformanceSummary,
@@ -105,7 +106,7 @@ export type SearchCatalogRow =
 export type SearchCatalogCounts = Partial<Record<SearchScope, number>>;
 
 /** Metadata for a playlist the caller can currently view. */
-export interface SearchPlaylistCard {
+export interface SearchPlaylistCard extends PlaylistAudience {
   id: string;
   name: string;
   track_count: number;

@@ -1,3 +1,4 @@
+import { useLibraryPlaylistAudience } from '@/relisten/playlists/ui/playlist_audience';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, Stack, useRouter } from 'expo-router';
 import { useMemo } from 'react';
@@ -114,6 +115,7 @@ export default function PlaylistsPage() {
   const router = useRouter();
   const playlists = usePlaylists();
   const isFavorite = useIsFavoritePlaylist();
+  const audience = useLibraryPlaylistAudience();
   const summaryOf = usePlaylistSummaries(playlists);
   const items = useMemo(
     () =>
@@ -154,6 +156,11 @@ export default function PlaylistsPage() {
                 playlist={item.playlist}
                 summary={item.summary}
                 favorite={item.favorite}
+                audience={
+                  item.playlist.published && !item.playlist.takenDown && !item.playlist.unavailable
+                    ? audience?.get(item.uuid)
+                    : undefined
+                }
               />
             )}
             ListFooterComponent={<PlaylistsFooter />}
@@ -187,6 +194,11 @@ function PlaylistsFooter() {
 
   return (
     <View>
+      <Link href={`/relisten/tabs/${groupSegment}/playlists/discover` as const} asChild>
+        <TouchableOpacity accessibilityRole="button" className="min-h-[52px] justify-center px-4">
+          <RelistenText>Discover Playlists ›</RelistenText>
+        </TouchableOpacity>
+      </Link>
       {deleted.length > 0 && (
         <>
           <ItemSeparator />
