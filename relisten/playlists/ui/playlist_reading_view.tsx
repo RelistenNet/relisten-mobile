@@ -3,6 +3,7 @@ import type { PlaylistAudience } from '../playlist_audience';
 import { MaterialIcons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   type FlatListProps,
   type TextInputInstance,
@@ -284,6 +285,10 @@ export function PlaylistViewHeader({
     [groups, online]
   );
   const canPlay = queueable > 0;
+  // Rows wait on the catalog before they can play. Until that answers, the
+  // playlist is still loading, not unavailable.
+  const tracksLoading =
+    online && groups.some((g) => g.entries.some((row) => row.status === 'loading'));
   const fullyDownloaded = stats.allDownloaded;
   const status = fullyDownloaded
     ? 'Downloaded'
@@ -387,7 +392,13 @@ export function PlaylistViewHeader({
           Make a Copy
         </RelistenButton>
       </View>
-      {trackCount > 0 && !canPlay && (
+      {trackCount > 0 && !canPlay && tracksLoading && (
+        <View className="flex-row items-center justify-center pb-3" style={{ gap: 8 }}>
+          <ActivityIndicator size="small" color="#9ca3af" />
+          <RelistenText className="text-center text-sm text-gray-400">Loading tracks…</RelistenText>
+        </View>
+      )}
+      {trackCount > 0 && !canPlay && !tracksLoading && (
         <RelistenText className="pb-3 text-center text-sm text-gray-400">
           {nothingPlayableMessage(online)}
         </RelistenText>
