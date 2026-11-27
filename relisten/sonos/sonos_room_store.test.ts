@@ -193,6 +193,16 @@ describe('SonosRoomStore', () => {
       expect(sonosRoomName(remote.getState())).toBe('Living Room + 3');
     });
 
+    it('reads the room list when a room is restored at launch', async () => {
+      const { server, remote } = store('h1');
+      server.room.playbackState = 'PLAYBACK_STATE_PLAYING';
+      server.groups = [{ id: 'g1', name: 'Living Room + 3', household_id: 'house-1' }];
+
+      await remote.discover(() => true);
+
+      expect(sonosRoomName(remote.getState())).toBe('Living Room + 3');
+    });
+
     it('ends control of an unlisted room that no longer plays the queue', async () => {
       const { server, remote } = await adopted();
       server.room.status = 'evicted';

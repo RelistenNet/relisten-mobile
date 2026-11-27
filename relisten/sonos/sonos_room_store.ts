@@ -529,6 +529,8 @@ export class SonosRoomStore {
         this.remember(undefined);
       } else if (isSonosPlaying(playback) && canRestore()) {
         this.apply(playback);
+        // The server's name dates from the handoff; the list has the current one.
+        await this.readRoomList();
       }
       // A live room that isn't restored now (paused, or the phone started
       // playing meanwhile) stays remembered for the next launch.
