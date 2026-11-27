@@ -170,6 +170,66 @@ describe('SonosRoomStore', () => {
     });
   });
 
+  describe('the room list', () => {
+    // Sonos keeps a group's ID when speakers join it; the server keeps the old name.
+    const regrouped = [{ id: 'g1', name: 'Living Room + 3' }];
+
+    it('shows the listed name of a room that was regrouped', async () => {
+      const { remote } = await adopted();
+
+      remote.noteRooms(regrouped);
+      expect(sonosRoomName(remote.getState())).toBe('Living Room + 3');
+
+      await remote.refresh();
+      expect(sonosRoomName(remote.getState())).toBe('Living Room + 3');
+    });
+
+    it('reads the room list when the app returns to a room it controls', async () => {
+      const { server, remote } = await adopted();
+      server.groups = [{ id: 'g1', name: 'Living Room + 3', household_id: 'house-1' }];
+
+      await remote.discover(() => true);
+
+      expect(sonosRoomName(remote.getState())).toBe('Living Room + 3');
+    });
+
+    it('ends control of an unlisted room that no longer plays the queue', async () => {
+      const { server, remote } = await adopted();
+      server.room.status = 'evicted';
+
+      remote.noteRooms([{ id: 'g2', name: 'Kitchen' }]);
+      await flush();
+
+      expect(remote.getState()).toEqual({
+        kind: 'none',
+        ended: { roomName: 'Alec’s Office', reason: 'stopped' },
+      });
+    });
+
+    it('keeps an unlisted room that still plays the queue, since the list may be stale', async () => {
+      const { server, remote } = await adopted();
+      const reads = server.requestsTo('GET /v1/integrations/sonos/playback/h1');
+
+      remote.noteRooms([{ id: 'g2', name: 'Kitchen' }]);
+      await flush();
+
+      expect(server.requestsTo('GET /v1/integrations/sonos/playback/h1')).toBe(reads + 1);
+      expect(sonosRoomName(remote.getState())).toBe('Alec’s Office');
+    });
+
+    it('forgets listed names when the account changes', async () => {
+      const { server, remote, switchAccount } = await adopted();
+      remote.noteRooms(regrouped);
+      switchAccount();
+      remote.bind(server as never, () => true, 'user-1');
+
+      remote.adopt('h1', OFFICE);
+      await flush();
+
+      expect(sonosRoomName(remote.getState())).toBe('Alec’s Office');
+    });
+  });
+
   describe('commands', () => {
     it('plays, then reads until the room is playing', async () => {
       const { server, remote } = await adopted();

@@ -29,6 +29,8 @@ export class FakeUserService {
     canRepeat: true,
     canRepeatOne: true,
   };
+  /** The account's Sonos groups, as the room list reports them. */
+  groups = [{ id: 'g1', name: 'Alec’s Office', household_id: 'house-1' }];
   /** When false, playback readings leave out `queue_version`, as an older server might. */
   reportsQueueVersion = true;
   /** When false, commands are accepted but the room never changes, as if Sonos dropped them. */
@@ -119,6 +121,9 @@ export class FakeUserService {
     }
     if (method === 'GET' && path === `${base}/volume`) {
       return { ...room.volume };
+    }
+    if (method === 'GET' && path === '/v1/integrations/sonos/groups') {
+      return this.groups.map((group) => ({ ...group }));
     }
     if (method === 'POST' && path === '/v1/integrations/sonos/handoffs') {
       return { request_id: body?.request_id, status: 'loaded', playback_handle: HANDLE_UUID };

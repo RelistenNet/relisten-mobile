@@ -4,7 +4,12 @@ import {
   AccountsApiError,
   type AuthorizedAccountsApiClient,
 } from '@/relisten/accounts/api/accounts_api_client';
-import { isSonosUnavailable, needsSonosReconnect, type SonosHandoffRequest } from './sonos_api';
+import {
+  fetchSonosGroups,
+  isSonosUnavailable,
+  needsSonosReconnect,
+  type SonosHandoffRequest,
+} from './sonos_api';
 import { runSonosHandoff, type SonosHandoffOutcome } from './sonos_handoff';
 import {
   isSonosPlaybackLive,
@@ -178,6 +183,12 @@ export class SonosRoomStore {
   private reading: { handle: string; playback: Promise<SonosPlayback | undefined> } | undefined;
   /** Each group's last volume this run, shown while the room is read again. */
   private readonly volumes = new Map<string, SonosVolume>();
+  /**
+   * Room names from the latest room list, by group ID. The server keeps the
+   * name a group had when the queue moved there, and Sonos keeps a group's ID
+   * while speakers join or leave it, so the list's name is the current one.
+   */
+  private listedNames = new Map<string, string>();
   private readonly subscribers = new Set<Subscriber>();
   private api: AuthorizedAccountsApiClient | undefined;
   private account: string | undefined;
@@ -227,7 +238,53 @@ export class SonosRoomStore {
     this.handedOff = undefined;
     this.reading = undefined;
     this.contact = NO_CONTACT;
+    this.listedNames = new Map();
     this.set({ kind: 'none' });
+  }
+
+  /**
+   * Takes in a fresh room list. The controlled room shows its listed name.
+   * A room missing from the list may have been ungrouped, so it is read
+   * again; the server ends control if the room no longer plays the queue.
+   * Absence alone doesn't end it, since the list may be older than the read.
+   */
+  noteRooms(groups: readonly { id: string; name: string }[]) {
+    this.listedNames = new Map(groups.map((group) => [group.id, group.name]));
+
+    const current = this.state;
+    const room = controlledRoom(current);
+    if (!room) {
+      return;
+    }
+
+    const listedName = this.listedNames.get(room.groupId);
+    if (listedName === undefined) {
+      void this.refresh();
+      return;
+    }
+
+    if (current.kind === 'active' && current.playback.groupName !== listedName) {
+      this.set({ ...current, playback: { ...current.playback, groupName: listedName } });
+    } else if (current.kind === 'checking' && current.groupName !== listedName) {
+      this.set({ ...current, groupName: listedName });
+    }
+  }
+
+  /** Reads the room list for `noteRooms`; a failed read changes nothing. */
+  private async readRoomList() {
+    const scope = this.accountScope();
+    if (!scope) {
+      return;
+    }
+
+    try {
+      const groups = await fetchSonosGroups(scope.api);
+      if (scope.stillCurrent()) {
+        this.noteRooms(groups);
+      }
+    } catch {
+      // The next foreground or Play On tries again.
+    }
   }
 
   /** Takes over the handle a handoff just returned, remembers the room, and reads it. */
@@ -448,7 +505,8 @@ export class SonosRoomStore {
       return;
     }
     if (this.currentHandle() !== undefined) {
-      await this.refresh();
+      // Speakers may have been grouped differently while the app was away.
+      await Promise.all([this.refresh(), this.readRoomList()]);
       return;
     }
 
@@ -800,7 +858,8 @@ export class SonosRoomStore {
   }
 
   /** Shows a reading of the current handle, and resolves the reading now shown. */
-  private apply(playback: SonosPlayback): SonosPlayback | undefined {
+  private apply(reading: SonosPlayback): SonosPlayback | undefined {
+    const playback = this.withListedName(reading);
     if (!isSonosPlaybackLive(playback)) {
       this.endPlayback({
         roomName: playback.groupName,
@@ -852,6 +911,13 @@ export class SonosRoomStore {
     };
     this.set({ ...current, playback });
     return playback;
+  }
+
+  private withListedName(playback: SonosPlayback): SonosPlayback {
+    const listedName = this.listedNames.get(playback.groupId);
+    return listedName === undefined || listedName === playback.groupName
+      ? playback
+      : { ...playback, groupName: listedName };
   }
 
   private showVolume(current: ActiveRoom, volume: SonosVolume) {
