@@ -67,6 +67,8 @@ export type PlaylistViewRow =
       segmentId: string;
       markdown: string;
       link?: LinkPosition;
+      /** A bare row directly above a card, which needs no hairline: the card's edge separates them. */
+      beforeCard?: boolean;
     }
   | {
       kind: 'entry';
@@ -116,7 +118,7 @@ export function playlistViewRows(groups: PlaylistRowGroup[]): PlaylistViewRow[] 
   }
 
   rows.forEach((row, index) => {
-    if (row.kind === 'entry' && !row.link && rows[index + 1]?.link) {
+    if (!row.link && rows[index + 1]?.link) {
       row.beforeCard = true;
     }
   });
@@ -182,7 +184,13 @@ export const PlaylistIntroRow = memo(function PlaylistIntroRow({
   return (
     <PlaylistRowFrame link={viewRow.link} linkPlaying={linkPlaying}>
       {/* In a card, the intro leads straight into its first track, without a hairline. */}
-      <View className={tw('pr-2', inCard ? 'pb-1 pt-3' : PROSE_PADDING)}>
+      <View
+        className={tw('pr-2', inCard ? 'pb-1 pt-3' : PROSE_PADDING, {
+          // Bare prose between tracks gets a line below too, so it reads as
+          // its own row rather than as the next track's caption.
+          [HAIRLINE]: !inCard && !viewRow.beforeCard,
+        })}
+      >
         <GuideMarkdown
           markdown={viewRow.markdown}
           variant={inCard ? 'card' : 'prose'}
@@ -220,7 +228,9 @@ export const PlaylistTextRow = memo(function PlaylistTextRow({
     <PlaylistRowFrame link={link} linkPlaying={linkPlaying}>
       <View
         className={tw('min-h-[52px] flex-row items-start', {
-          [HAIRLINE]: inCard && !closesCard(link),
+          // A bare block gets a line below as well as the one above it, so it
+          // reads as its own row rather than as the next track's caption.
+          [HAIRLINE]: inCard ? !closesCard(link) : !viewRow.beforeCard,
         })}
       >
         <View className={tw('min-w-0 flex-1', inCard ? 'py-3' : PROSE_PADDING)}>
