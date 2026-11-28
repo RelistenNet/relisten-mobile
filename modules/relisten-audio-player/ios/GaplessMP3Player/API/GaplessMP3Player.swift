@@ -5,6 +5,9 @@ private let playerLifecycleLog = RelistenPlaybackLogger(layer: .player, category
 
 protocol PCMOutputControlling: AnyObject, Sendable {
     var isPlaying: Bool { get }
+    var isEngineRunning: Bool { get }
+    /// Set by the player, which hops to its own queue when it fires.
+    var onEngineStoppedBySystem: (@Sendable () -> Void)? { get set }
     var volume: Float { get set }
     func applyAudioAdjustmentConfiguration(
         _ configuration: AudioAdjustmentConfiguration,
@@ -222,6 +225,7 @@ public final class GaplessMP3Player: @unchecked Sendable {
 
             await performOnPlaybackQueue {
                 self.stopOutputGraphOnPlaybackQueue()
+                self.restartWhenSystemStopsEngine(of: outputGraph)
                 outputGraph.volume = self.stateStore.get().volume
                 outputGraph.applyAudioAdjustmentConfiguration(
                     self.stateStore.get().audioAdjustmentConfiguration,
@@ -487,6 +491,15 @@ public final class GaplessMP3Player: @unchecked Sendable {
         _ = applyPendingTrackTransitionIfNeededOnPlaybackQueue()
 
         guard stateStore.get().latestPreparationReport != nil else { return }
+        // iOS can stop the engine while we still count as playing (a phone
+        // call, a route change) and drop the queued audio with it. Nudging the
+        // graph would leave that silence in place, so restart from here.
+        if stateStore.get().playbackPhase == .playing && !restartPipelineIfPlaying,
+           stateStore.get().outputGraph?.isEngineRunning == false {
+            restartOutputAtCurrentPositionOnPlaybackQueue(reason: "play")
+            return
+        }
+
         // Lock-screen resume can arrive after Media Center drifted to "paused"
         // while the graph is still playing. In that case play() must be
         // idempotent; resetting the graph would jump back to requestedStartTime,
@@ -525,6 +538,55 @@ public final class GaplessMP3Player: @unchecked Sendable {
             do {
                 try await self.startPipeline(at: startTime)
             } catch {}
+        }
+    }
+
+    /// Routes the graph's "iOS stopped the engine" signal here, ignoring it
+    /// once a newer graph replaced this one.
+    private func restartWhenSystemStopsEngine(of outputGraph: PCMOutputControlling) {
+        dispatchPrecondition(condition: .onQueue(playbackQueue))
+        outputGraph.onEngineStoppedBySystem = { [weak self, weak outputGraph] in
+            guard let self else { return }
+            self.playbackQueue.async { [weak self, weak outputGraph] in
+                guard let self, let outputGraph,
+                      self.stateStore.get().outputGraph === outputGraph else { return }
+                self.restartOutputAtCurrentPositionOnPlaybackQueue(reason: "engineStoppedBySystem")
+            }
+        }
+    }
+
+    /// The engine stopped underneath playback and its queued audio is gone.
+    /// A seek to where the listener is restarts decoding and the engine, the
+    /// same work pause then play does. While paused there is nothing to do:
+    /// the next play starts the engine.
+    private func restartOutputAtCurrentPositionOnPlaybackQueue(reason: String) {
+        dispatchPrecondition(condition: .onQueue(playbackQueue))
+        guard stateStore.get().playbackPhase == .playing else { return }
+
+        let absoluteTimelineTime = absoluteTimelineTimeOnPlaybackQueue()
+        _ = applyPendingTrackTransitionIfNeededOnPlaybackQueue(absoluteTimelineTime: absoluteTimelineTime)
+        let position = max(absoluteTimelineTime - stateStore.get().publicTimelineOffset, 0)
+        playerLifecycleLog.notice(
+            "restarting",
+            "output after engine stop",
+            playbackLogField("reason", reason),
+            playbackLogDurationField("time", position)
+        )
+
+        Task { [weak self] in
+            do {
+                try await self?.seek(to: position)
+            } catch {
+                // Usually the call still holds the audio session. Playback
+                // stays "playing" with the engine stopped, so the next play
+                // (or the interruption ending) comes back through here.
+                playerLifecycleLog.error(
+                    "failed",
+                    "output restart after engine stop",
+                    playbackLogField("reason", reason),
+                    playbackLogField("error", String(describing: error))
+                )
+            }
         }
     }
 
@@ -1041,6 +1103,7 @@ extension GaplessMP3Player {
         activePipelineSessionID: String? = nil
     ) async {
         await performOnPlaybackQueue {
+            if let outputGraph { self.restartWhenSystemStopsEngine(of: outputGraph) }
             self.stateStore.withValue { state in
                 state.outputGraph = outputGraph
                 state.currentSource = currentSource

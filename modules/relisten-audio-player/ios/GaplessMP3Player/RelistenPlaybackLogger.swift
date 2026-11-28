@@ -40,6 +40,15 @@ struct RelistenPlaybackLogger {
         logger.info("\(message, privacy: .public)")
     }
 
+    /// iOS saves notice-level lines to disk on the device and drops info lines
+    /// soon after they're written. Use this for the rare events needed to
+    /// explain a listener's report afterwards: interruptions, route changes,
+    /// remote commands and engine restarts.
+    func notice(_ verb: String, _ context: String? = nil, _ fields: String...) {
+        let message = composeMessage(verb: verb, context: context, fields: fields)
+        logger.notice("\(message, privacy: .public)")
+    }
+
     func warn(_ verb: String, _ context: String? = nil, _ fields: String...) {
         let message = composeMessage(verb: verb, context: context, fields: fields)
         logger.notice("\(message, privacy: .public)")

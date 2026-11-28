@@ -471,6 +471,81 @@ final class GaplessMP3PlayerTests: XCTestCase {
         XCTAssertEqual(status.currentTime, 4, accuracy: 0.05)
     }
 
+    // A phone call or route change makes iOS stop the engine and drop its
+    // queued audio while the player still counts as playing.
+    func testEngineStoppedBySystemWhilePlayingRestartsAudioAtTheCurrentPosition() async throws {
+        let outputGraph = TestOutputGraph()
+        let player = makePlayer(outputGraph: outputGraph)
+        let current = fixtureSource(id: "current", fixtureName: "gd77-s2t07-first-5s.mp3")
+
+        try await player.prepare(current: current, next: nil)
+        XCTAssertTrue(player.play())
+        try await waitUntil("initial playback schedules audio") {
+            outputGraph.totalScheduledDuration() > 0
+        }
+        outputGraph.setCurrentTime(2)
+        let resetsBeforeStop = outputGraph.resets
+
+        outputGraph.simulateSystemEngineStop(notify: true)
+
+        try await waitUntil("restart schedules audio again") {
+            outputGraph.totalScheduledDuration() > 0 && outputGraph.resets > resetsBeforeStop
+        }
+        XCTAssertTrue(outputGraph.isEngineRunning)
+        let status = await player.status()
+        XCTAssertEqual(status.playbackPhase, .playing)
+        XCTAssertEqual(status.currentTime, 2, accuracy: 0.05)
+    }
+
+    func testEngineStoppedBySystemWhilePausedStaysSilent() async throws {
+        let outputGraph = TestOutputGraph()
+        let player = makePlayer(outputGraph: outputGraph)
+        let current = fixtureSource(id: "current", fixtureName: "gd77-s2t07-first-5s.mp3")
+
+        try await player.prepare(current: current, next: nil)
+        XCTAssertTrue(player.play())
+        try await waitUntil("initial playback schedules audio") {
+            outputGraph.totalScheduledDuration() > 0
+        }
+        player.pause()
+        _ = await player.status()
+        let resetsBeforeStop = outputGraph.resets
+
+        outputGraph.simulateSystemEngineStop(notify: true)
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertEqual(outputGraph.resets, resetsBeforeStop)
+        XCTAssertFalse(outputGraph.isEngineRunning)
+        let status = await player.status()
+        XCTAssertEqual(status.playbackPhase, .paused)
+    }
+
+    // Control Center's play, or the call ending, while the engine is stopped
+    // underneath playback must not be a no-op.
+    func testPlayWhileEngineIsStoppedUnderneathPlaybackRestartsAudio() async throws {
+        let outputGraph = TestOutputGraph()
+        let player = makePlayer(outputGraph: outputGraph)
+        let current = fixtureSource(id: "current", fixtureName: "gd77-s2t07-first-5s.mp3")
+
+        try await player.prepare(current: current, next: nil)
+        XCTAssertTrue(player.play())
+        try await waitUntil("initial playback schedules audio") {
+            outputGraph.totalScheduledDuration() > 0
+        }
+        outputGraph.setCurrentTime(3)
+        outputGraph.simulateSystemEngineStop(notify: false)
+        XCTAssertTrue(outputGraph.isPlaying)
+
+        XCTAssertTrue(player.play())
+
+        try await waitUntil("play restarts audio") {
+            outputGraph.totalScheduledDuration() > 0 && outputGraph.isEngineRunning
+        }
+        let status = await player.status()
+        XCTAssertEqual(status.playbackPhase, .playing)
+        XCTAssertEqual(status.currentTime, 3, accuracy: 0.05)
+    }
+
     func testSetNextAfterPlayStillTransitionsAtTrackBoundary() async throws {
         let outputGraph = TestOutputGraph()
         let player = makePlayer(outputGraph: outputGraph)
@@ -1998,6 +2073,9 @@ private final class TestOutputGraph: PCMOutputControlling, @unchecked Sendable {
     private let resetError: Error?
     private var timelineOffset: TimeInterval
     private var playing: Bool
+    private var engineRunning = false
+    private var engineStoppedBySystem: (@Sendable () -> Void)?
+    private var resetCount = 0
     private var outputVolume: Float = 1.0
     private var audioAdjustmentConfiguration: AudioAdjustmentConfiguration = .disabled
     private var scheduledChunks: [PCMChunk] = []
@@ -2015,12 +2093,51 @@ private final class TestOutputGraph: PCMOutputControlling, @unchecked Sendable {
         self.resetError = resetError
         self.timelineOffset = currentTime
         self.playing = isPlaying
+        self.engineRunning = isPlaying
     }
 
     var isPlaying: Bool {
         lock.lock()
         defer { lock.unlock() }
         return playing
+    }
+
+    var isEngineRunning: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return engineRunning
+    }
+
+    var onEngineStoppedBySystem: (@Sendable () -> Void)? {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return engineStoppedBySystem
+        }
+        set {
+            lock.lock()
+            defer { lock.unlock() }
+            engineStoppedBySystem = newValue
+        }
+    }
+
+    var resets: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return resetCount
+    }
+
+    /// What iOS does on a hardware change: the engine stops, queued audio is
+    /// dropped, and the node still reports playing. `notify` sends the
+    /// configuration-change signal the real graph forwards.
+    func simulateSystemEngineStop(notify: Bool) {
+        lock.lock()
+        engineRunning = false
+        scheduledChunks = []
+        playedBackCallbacks = []
+        let callback = engineStoppedBySystem
+        lock.unlock()
+        if notify { callback?() }
     }
 
     var volume: Float {
@@ -2060,6 +2177,8 @@ private final class TestOutputGraph: PCMOutputControlling, @unchecked Sendable {
         self.timelineOffset = timelineOffset
         scheduledChunks = []
         playedBackCallbacks = []
+        resetCount += 1
+        if startEngine { engineRunning = true }
     }
 
     func setCurrentTime(_ time: TimeInterval) {
@@ -2075,6 +2194,7 @@ private final class TestOutputGraph: PCMOutputControlling, @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         playing = true
+        engineRunning = true
     }
 
     func schedule(_ chunk: PCMChunk, playedBack: (@Sendable () -> Void)?) throws {
@@ -2093,6 +2213,7 @@ private final class TestOutputGraph: PCMOutputControlling, @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         playing = false
+        engineRunning = false
     }
 
     func markDecodeFinished() {}

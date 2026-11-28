@@ -142,7 +142,7 @@ final class GaplessBackendRemoteCommandController {
         result: MPRemoteCommandHandlerStatus,
         snapshot: GaplessBackendSnapshot
     ) {
-        backendCommandLog.info(
+        backendCommandLog.notice(
             "handled",
             "remote command",
             playbackLogField("method", method),

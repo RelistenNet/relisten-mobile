@@ -213,4 +213,66 @@ final class PCMOutputGraphTests: XCTestCase {
             XCTAssertTrue(graph.isEngineRunning)
         }
     }
+
+    // iOS stops the engine when the output hardware changes, such as a phone
+    // call switching to call audio and back. The node keeps reporting playing
+    // and the queued audio is dropped, which is why the player restarts
+    // decoding instead of nudging the graph.
+    func testSystemEngineStopLeavesTheNodeReportingPlayingAndDropsQueuedAudio() throws {
+        let queue = DispatchQueue(label: "PCMOutputGraphTests.system-stop")
+        let drained = expectation(description: "queued buffer dropped")
+        let graph = try queue.sync {
+            let graph = try PCMOutputGraph(sampleRate: 44_100, channelCount: 2, ownerQueue: queue)
+            try graph.schedule(
+                .silence(sampleRate: 44_100, channelCount: 2, frameCount: 441_000),
+                playedBack: { drained.fulfill() }
+            )
+            try graph.requestPlay()
+            graph.engine.stop()
+            return graph
+        }
+
+        wait(for: [drained], timeout: 1)
+        queue.sync {
+            XCTAssertFalse(graph.isEngineRunning)
+            XCTAssertTrue(graph.isPlaying)
+        }
+    }
+
+    func testConfigurationChangeReportsOnlyAnEngineThatStopped() throws {
+        let queue = DispatchQueue(label: "PCMOutputGraphTests.configuration-change")
+        let stops = LockedCounter()
+        let graph = try queue.sync {
+            let graph = try PCMOutputGraph(sampleRate: 44_100, channelCount: 2, ownerQueue: queue)
+            graph.onEngineStoppedBySystem = { stops.increment() }
+            try graph.schedule(.silence(sampleRate: 44_100, channelCount: 2, frameCount: 44_100), playedBack: nil)
+            try graph.requestPlay()
+            return graph
+        }
+
+        // Still running: a change iOS absorbed needs no restart.
+        NotificationCenter.default.post(name: .AVAudioEngineConfigurationChange, object: graph.engine)
+        queue.sync { XCTAssertEqual(stops.value, 0) }
+
+        queue.sync { graph.engine.stop() }
+        NotificationCenter.default.post(name: .AVAudioEngineConfigurationChange, object: graph.engine)
+        queue.sync { XCTAssertEqual(stops.value, 1) }
+    }
+}
+
+private final class LockedCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    var value: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return count
+    }
+
+    func increment() {
+        lock.lock()
+        defer { lock.unlock() }
+        count += 1
+    }
 }

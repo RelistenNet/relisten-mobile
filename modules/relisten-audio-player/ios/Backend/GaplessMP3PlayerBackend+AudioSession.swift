@@ -65,7 +65,7 @@ extension GaplessMP3PlayerBackend {
 
     private func handleRouteChangeOnQueue(_ event: RouteChangeEvent) {
         let snapshot = snapshotStore.get()
-        backendStateLog.info(
+        backendStateLog.notice(
             "received",
             "route change",
             playbackLogField("reason", routeChangeReasonDescription(event.reason)),
@@ -97,7 +97,7 @@ extension GaplessMP3PlayerBackend {
 
     private func handleInterruptionOnQueue(_ event: AudioInterruptionEvent) {
         let snapshot = snapshotStore.get()
-        backendStateLog.info(
+        backendStateLog.notice(
             "received",
             "audio interruption",
             playbackLogField("type", interruptionTypeDescription(event.type)),

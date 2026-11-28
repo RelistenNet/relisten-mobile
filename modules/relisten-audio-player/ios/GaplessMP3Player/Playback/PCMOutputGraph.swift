@@ -12,7 +12,8 @@ private let outputGraphLifecycleLog = RelistenPlaybackLogger(layer: .player, cat
 /// scheduled-vs-rendered time.
 final class PCMOutputGraph: PCMOutputControlling, @unchecked Sendable {
     private let ownerQueue: DispatchQueue
-    private let engine = AVAudioEngine()
+    /// Internal so tests can stop it the way iOS does on a hardware change.
+    let engine = AVAudioEngine()
     private let playerNode = AVAudioPlayerNode()
     private let equalizer = AVAudioUnitEQ(numberOfBands: AudioAdjustmentConfiguration.frequenciesHz.count)
     private let spectrumTap = AudioSpectrumTap()
@@ -25,6 +26,11 @@ final class PCMOutputGraph: PCMOutputControlling, @unchecked Sendable {
     private var appliedAudioAdjustmentConfiguration: AudioAdjustmentConfiguration = .disabled
     private var targetAudioAdjustmentConfiguration: AudioAdjustmentConfiguration = .disabled
     private var rampGeneration = 0
+    private var configurationChangeObserver: NSObjectProtocol?
+
+    /// Called on the owner queue after iOS stops the engine by itself. The
+    /// queued audio is gone by then, so the owner restarts decoding.
+    var onEngineStoppedBySystem: (@Sendable () -> Void)?
 
     init(sampleRate: Double, channelCount: Int, ownerQueue: DispatchQueue) throws {
         self.ownerQueue = ownerQueue
@@ -50,9 +56,22 @@ final class PCMOutputGraph: PCMOutputControlling, @unchecked Sendable {
         // Preparing a source (including after media-services reset) does not
         // grant session ownership. Start only from the activated play path.
         engine.prepare()
+
+        configurationChangeObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: engine,
+            queue: nil
+        ) { [weak self, ownerQueue] _ in
+            ownerQueue.async { [weak self] in
+                self?.handleEngineConfigurationChange()
+            }
+        }
     }
 
     deinit {
+        if let configurationChangeObserver {
+            NotificationCenter.default.removeObserver(configurationChangeObserver)
+        }
         spectrumTap.detach()
     }
 
@@ -184,6 +203,26 @@ final class PCMOutputGraph: PCMOutputControlling, @unchecked Sendable {
         }
     }
 
+    /// iOS stops the engine by itself when the output hardware changes: a
+    /// phone call switching to call audio and back, or a route with another
+    /// sample rate. It drops the queued buffers, and the player node goes on
+    /// reporting `isPlaying`, so nothing here would notice. The owner restarts
+    /// decoding from the current position, which starts the engine again.
+    private func handleEngineConfigurationChange() {
+        dispatchPrecondition(condition: .onQueue(ownerQueue))
+        outputGraphLifecycleLog.notice(
+            "received",
+            "output engine configuration change",
+            playbackLogBoolField("running", engine.isRunning),
+            playbackLogBoolField("nodePlaying", playerNode.isPlaying),
+            playbackLogBoolField("wants", wantsPlayback),
+            playbackLogIntegerField("pending", pendingBufferCount)
+        )
+
+        guard !engine.isRunning else { return }
+        onEngineStoppedBySystem?()
+    }
+
     func pause() {
         dispatchPrecondition(condition: .onQueue(ownerQueue))
         updateLastKnownTime()
@@ -282,7 +321,7 @@ final class PCMOutputGraph: PCMOutputControlling, @unchecked Sendable {
         } catch {
             throw GaplessMP3PlayerError.audioPipeline("Could not start output engine during \(context): \(error)")
         }
-        outputGraphLifecycleLog.info(
+        outputGraphLifecycleLog.notice(
             "started",
             "output engine",
             playbackLogField("ctx", context),
