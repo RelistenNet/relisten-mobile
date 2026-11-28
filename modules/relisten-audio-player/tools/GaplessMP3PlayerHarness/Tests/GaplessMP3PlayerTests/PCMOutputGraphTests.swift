@@ -106,6 +106,10 @@ final class PCMOutputGraphTests: XCTestCase {
         let queue = DispatchQueue(label: "PCMOutputGraphTests.signed-gain")
         try queue.sync {
             let graph = try PCMOutputGraph(sampleRate: 44_100, channelCount: 2, ownerQueue: queue)
+            // A prepared graph stays stopped until play, so start it to check
+            // that gain changes leave a playing engine running.
+            try graph.schedule(.silence(sampleRate: 44_100, channelCount: 2, frameCount: 44_100), playedBack: nil)
+            try graph.requestPlay()
             for gain in [-30.0, 0, 6, 12] {
                 let configuration = try AudioAdjustmentConfiguration.validated(
                     specVersion: 1, enabled: true,

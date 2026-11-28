@@ -258,12 +258,19 @@ actor HTTPSourceSession {
         if let storedError {
             throw storedError
         }
-        if downloadedPrefixEnd >= minimumBytes || isComplete {
+        // A read can't get more than the whole file. Metadata asks for a
+        // fixed-size prefix that a short file never reaches, so once every
+        // byte the server said it would send is here, don't also wait for the
+        // connection to close. Only the server's length counts: the app's
+        // expected size can be wrong and would cut the read short.
+        let reachableBytes = responseFingerprint.contentLength
+            .map { min(minimumBytes, $0) } ?? minimumBytes
+        if downloadedPrefixEnd >= reachableBytes || isComplete {
             return
         }
 
         try await withCheckedThrowingContinuation { continuation in
-            continuationWaiters.append((minimumBytes, continuation))
+            continuationWaiters.append((reachableBytes, continuation))
         }
     }
 
