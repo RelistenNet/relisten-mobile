@@ -7,6 +7,11 @@ export const PLAYER_STATE_SENTINEL = 'player_state';
 export interface PlayerQueueEntryProps {
   id: string;
   sourceTrackUuid: string;
+  /** Set when the occurrence was enqueued from a playlist. */
+  playlistId?: string | null;
+  entryId?: string | null;
+  /** Shared by the occurrences of one segment in one enqueue; group shuffle keeps them together. */
+  segmentInstanceId?: string | null;
 }
 
 export interface PlayerShuffleOrderProps {
@@ -38,11 +43,20 @@ export class PlayerQueueEntry
   static schema: Realm.ObjectSchema = {
     name: 'PlayerQueueEntry',
     embedded: true,
-    properties: { id: 'string', sourceTrackUuid: 'string' },
+    properties: {
+      id: 'string',
+      sourceTrackUuid: 'string',
+      playlistId: 'string?',
+      entryId: 'string?',
+      segmentInstanceId: 'string?',
+    },
   };
 
   id!: string;
   sourceTrackUuid!: string;
+  playlistId?: string | null;
+  entryId?: string | null;
+  segmentInstanceId?: string | null;
 }
 
 export class PlayerShuffleOrder extends Realm.Object<PlayerShuffleOrder> {
@@ -131,7 +145,11 @@ export class PlayerState extends Realm.Object<PlayerState> {
         current.queueEntries.some(
           (entry, index) =>
             entry.id !== props.queueEntries[index].id ||
-            entry.sourceTrackUuid !== props.queueEntries[index].sourceTrackUuid
+            entry.sourceTrackUuid !== props.queueEntries[index].sourceTrackUuid ||
+            (entry.playlistId ?? null) !== (props.queueEntries[index].playlistId ?? null) ||
+            (entry.entryId ?? null) !== (props.queueEntries[index].entryId ?? null) ||
+            (entry.segmentInstanceId ?? null) !==
+              (props.queueEntries[index].segmentInstanceId ?? null)
         );
       if (queueChanged) {
         updates.queueEntries = props.queueEntries;

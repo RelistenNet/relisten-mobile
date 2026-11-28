@@ -154,6 +154,13 @@ describe('player and accounts Realm upgrades', () => {
     expect(PlayerState.defaultObject(reopened)?.toJSON()).toEqual({
       id: playerStateId,
       ...savedPlayer,
+      // Older queue entries migrate with no playlist context.
+      queueEntries: savedPlayer.queueEntries.map((entry) => ({
+        ...entry,
+        playlistId: null,
+        entryId: null,
+        segmentInstanceId: null,
+      })),
     });
     expect(reopened.objects(UserFavorite)).toHaveLength(1);
     expect(reopened.objects(UserFavorite)[0]).toMatchObject({

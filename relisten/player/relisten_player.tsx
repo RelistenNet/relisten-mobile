@@ -189,6 +189,14 @@ export class RelistenPlayer {
   private nativePlayRequest?: NativePlayRequest;
   private requestedTrackIdentifier?: string;
 
+  /**
+   * Changes with every play, skip, or stop. Work that finishes later (such as a
+   * catalog check after an error) acts only if no newer command has been given.
+   */
+  get playCommandVersion(): number {
+    return this.playRequestVersion;
+  }
+
   private get requestedTrackIndex(): number | undefined {
     const index = this._queue.orderedTracks.findIndex(
       (track) => track.identifier === this.requestedTrackIdentifier

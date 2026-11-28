@@ -1,18 +1,16 @@
+import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
 import { AccountErrorNotice } from '@/relisten/accounts/ui/account_error_notice';
-import { AccountDetailRow } from '@/relisten/accounts/ui/account_detail_row';
+import { AccountAvatar } from '@/relisten/accounts/ui/account_avatar';
 import { FavoriteSyncFailureNotice } from '@/relisten/accounts/ui/favorite_sync_failure_notice';
-import {
-  AccountSyncState,
-  SyncStatusText,
-  syncStatusLabel,
-} from '@/relisten/accounts/ui/sync_status';
-import Flex from '@/relisten/components/flex';
+import { relativeTime, SettingsGroup, SettingsRow } from '@/relisten/accounts/ui/settings_list';
+import { AccountSyncState, syncStatusLabel } from '@/relisten/accounts/ui/sync_status';
 import { RelistenButton } from '@/relisten/components/relisten_button';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { SectionHeader } from '@/relisten/components/section_header';
+import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import type { FavoriteSyncFailure } from '@/relisten/library/favorite_hooks';
 import { FavoriteDiagnostics } from '@/relisten/accounts/ui/favorite_diagnostics';
+import { PlaylistDiagnostics, PlaylistSyncRow } from '@/relisten/accounts/ui/playlist_diagnostics';
 
 type SignedInAccountScreenProps = {
   actionError?: string;
@@ -57,111 +55,125 @@ export function SignedInAccountScreen({
   username,
   usernameReviewNeeded,
 }: SignedInAccountScreenProps) {
-  const syncSubtitle =
-    syncWaitingMessage ??
-    (pendingSyncCount > 0
-      ? `${pendingSyncCount} ${pendingSyncCount === 1 ? 'change' : 'changes'} saved on this device`
-      : lastSuccessfulSyncAt
-        ? `Last synced ${lastSuccessfulSyncAt.toLocaleString()}`
-        : syncStatusLabel(syncState));
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
+  // Keeps the last rows clear of the mini player now that this screen sits in a tab.
+  const scrollProps = usePlayerBottomScrollViewProps({});
+  const favoritesValue =
+    pendingSyncCount > 0
+      ? `${pendingSyncCount} ${pendingSyncCount === 1 ? 'change' : 'changes'} to save`
+      : syncState === 'saved' && lastSuccessfulSyncAt
+        ? `Up to date · ${relativeTime(lastSuccessfulSyncAt)}`
+        : syncStatusLabel(syncState);
 
   return (
-    <ScrollView className="flex-1 bg-relisten-blue-950">
-      <Flex column className="pb-8">
-        <View className="p-6">
-          <RelistenText className="text-3xl font-bold">@{username}</RelistenText>
-          <RelistenText className="mt-1 text-gray-400">
-            This is your public Relisten username.
-          </RelistenText>
+    <ScrollView className="flex-1 bg-relisten-blue-900" {...scrollProps}>
+      <View className="items-center px-6 pb-6 pt-8">
+        <AccountAvatar username={username} size={72} />
+        <RelistenText className="mt-3 text-2xl font-bold">@{username}</RelistenText>
+        <RelistenText className="mt-1 text-center text-gray-400">
+          Your favorites and playlists sync to this account.
+        </RelistenText>
+      </View>
+
+      {actionError && (
+        <View className="px-4 pb-4">
+          <AccountErrorNotice message={actionError} />
         </View>
+      )}
 
-        {actionError && (
-          <View className="px-4 pb-4">
-            <AccountErrorNotice message={actionError} />
-          </View>
-        )}
-
-        {usernameReviewNeeded && (
-          <View className="px-4 pb-4">
-            <View className="rounded-lg border border-relisten-blue-600 bg-relisten-blue-900 p-4">
-              <RelistenText className="font-semibold">
-                Choose how you appear on Relisten
-              </RelistenText>
-              <RelistenText className="mt-2 text-sm text-gray-300">
-                {pendingUsername
-                  ? `@${pendingUsername} is saved on this device and waiting to sync.`
-                  : `@${username} already works. Review it now, or keep listening and decide later.`}
-              </RelistenText>
-              <RelistenButton className="mt-3" intent="primary" onPress={onReviewUsername}>
-                {pendingUsername ? 'Retry username' : 'Review username'}
-              </RelistenButton>
-            </View>
-          </View>
-        )}
-
-        <SectionHeader title="Account" />
-        <Flex column className="p-4">
-          <View className="mb-5">
-            <AccountDetailRow
-              title="Username"
-              subtitle={
-                pendingUsername
-                  ? `@${pendingUsername} is waiting to sync.`
-                  : usernameReviewNeeded
-                    ? 'Your assigned username is ready to review.'
-                    : 'Used when your name is shown publicly.'
-              }
-            >
-              <RelistenButton intent="outline" onPress={onReviewUsername}>
-                {pendingUsername ? 'Retry' : usernameReviewNeeded ? 'Review' : 'Change'}
-              </RelistenButton>
-            </AccountDetailRow>
-          </View>
-
-          <View className="mb-5">
-            {syncFailure ? (
-              <FavoriteSyncFailureNotice
-                failure={syncFailure}
-                onDiscardRejected={onDiscardRejectedFavorites}
-                onRetry={onRetryFavoriteSync}
-              />
-            ) : (
-              <AccountDetailRow title="Favorites sync" subtitle={syncSubtitle}>
-                <SyncStatusText state={syncState} />
-              </AccountDetailRow>
-            )}
-          </View>
-
-          {(importAvailable || importInProgress) && (
-            <View className="mt-5">
-              <AccountDetailRow
-                title="Favorites on this device"
-                subtitle={`${anonymousFavoriteCount} ${
-                  anonymousFavoriteCount === 1 ? 'favorite is' : 'favorites are'
-                } available to add to this account.`}
-              >
-                <RelistenButton disabled={importInProgress} onPress={onImportFavorites}>
-                  {importInProgress ? 'Adding...' : 'Add'}
-                </RelistenButton>
-              </AccountDetailRow>
-            </View>
-          )}
-        </Flex>
-
-        <FavoriteDiagnostics />
-
-        <SectionHeader title="Account access" />
-        <Flex column className="p-4">
-          <View className="mb-3">
-            <RelistenButton disabled={transitioning} intent="outline" onPress={onSwitchAccount}>
-              Switch account
+      {usernameReviewNeeded && (
+        <View className="px-4 pb-6">
+          <View className="rounded-xl border border-relisten-blue-600 bg-relisten-blue-900 p-4">
+            <RelistenText className="font-semibold">Choose how you appear on Relisten</RelistenText>
+            <RelistenText className="mt-2 text-sm text-gray-300">
+              {pendingUsername
+                ? `@${pendingUsername} is saved on this device and waiting to sync.`
+                : `@${username} already works. Review it now, or keep listening and decide later.`}
+            </RelistenText>
+            <RelistenButton className="mt-3" intent="primary" onPress={onReviewUsername}>
+              {pendingUsername ? 'Retry username' : 'Review username'}
             </RelistenButton>
           </View>
-          <RelistenButton disabled={transitioning} intent="outline" onPress={onSignOut}>
-            Sign out
+        </View>
+      )}
+
+      <SettingsGroup title="Account">
+        <SettingsRow
+          label="Username"
+          value={pendingUsername ? `@${pendingUsername} (waiting)` : `@${username}`}
+          onPress={onReviewUsername}
+        />
+      </SettingsGroup>
+
+      <SettingsGroup title="Sync">
+        {!syncFailure && (
+          <SettingsRow
+            label="Favorites"
+            value={favoritesValue}
+            valueClassName={syncValueClass(syncState)}
+          />
+        )}
+        <PlaylistSyncRow />
+      </SettingsGroup>
+
+      {(importAvailable || importInProgress) && (
+        <View className="mb-4 px-4">
+          <RelistenButton disabled={importInProgress} onPress={onImportFavorites}>
+            {importInProgress
+              ? 'Adding favorites…'
+              : `Add ${anonymousFavoriteCount} ${anonymousFavoriteCount === 1 ? 'favorite' : 'favorites'} from this device`}
           </RelistenButton>
-        </Flex>
-      </Flex>
+        </View>
+      )}
+
+      {syncWaitingMessage && (
+        <RelistenText className="-mt-2 mb-4 px-4 text-sm text-gray-400">
+          {syncWaitingMessage}
+        </RelistenText>
+      )}
+      {syncFailure && (
+        <View className="mb-6 px-4">
+          <FavoriteSyncFailureNotice
+            failure={syncFailure}
+            onDiscardRejected={onDiscardRejectedFavorites}
+            onRetry={onRetryFavoriteSync}
+          />
+        </View>
+      )}
+
+      <View className="mb-4 mt-6 flex-row gap-3 px-4">
+        <RelistenButton className="flex-1" disabled={transitioning} onPress={onSwitchAccount}>
+          Switch Account
+        </RelistenButton>
+        <RelistenButton
+          className="flex-1"
+          disabled={transitioning}
+          onPress={onSignOut}
+          textClassName="text-red-300"
+        >
+          Sign Out
+        </RelistenButton>
+      </View>
+
+      <View className="mb-4 px-4">
+        <RelistenButton intent="outline" onPress={() => setShowDiagnostics(!showDiagnostics)}>
+          {showDiagnostics ? 'Hide Diagnostics' : 'Show Diagnostics'}
+        </RelistenButton>
+      </View>
+      {showDiagnostics && (
+        <View className="pb-8">
+          <FavoriteDiagnostics />
+          <PlaylistDiagnostics />
+        </View>
+      )}
     </ScrollView>
   );
+}
+
+function syncValueClass(state: AccountSyncState) {
+  return state === 'waiting'
+    ? 'text-amber-300'
+    : state === 'needsAttention'
+      ? 'text-red-300'
+      : undefined;
 }

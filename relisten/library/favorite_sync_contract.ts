@@ -3,6 +3,7 @@ import {
   favoriteTargetKey,
   isFavoriteTarget,
 } from '@/relisten/library/favorite_catalog_target';
+import type { PlaylistSummary } from '@/relisten/playlists/sync/playlist_wire';
 import { isUuidV7TypedId } from '@/relisten/util/typed_uuid_id';
 
 export type FavoriteDesiredState = 'favorite' | 'not_favorite';
@@ -48,11 +49,17 @@ export interface FavoriteSnapshotItem {
   updated_at: string;
 }
 
+/**
+ * The library feed carries favorites and, additively, playlist summaries. Both
+ * responses also carry the server's history generation.
+ */
 export interface FavoriteLibrarySnapshot {
   contract_version: 1;
   library_revision: number;
   next_cursor: string;
   favorites: FavoriteSnapshotItem[];
+  playlists?: PlaylistSummary[];
+  history_generation?: string;
 }
 
 export interface FavoriteLibraryChange {
@@ -64,12 +71,39 @@ export interface FavoriteLibraryChange {
   changed_at: string;
 }
 
+export interface PlaylistSummaryChange {
+  change_id: string;
+  revision: number;
+  change_type: 'playlist_summary';
+  playlist: PlaylistSummary;
+  changed_at: string;
+}
+
+/** Change types this client does not know are skipped, never rejected. */
+export interface UnknownLibraryChange {
+  change_id: string;
+  revision: number;
+  change_type: string;
+  changed_at: string;
+}
+
+export type LibraryChange = FavoriteLibraryChange | PlaylistSummaryChange | UnknownLibraryChange;
+
 export interface FavoriteLibraryChanges {
   contract_version: 1;
   library_revision: number;
-  changes: FavoriteLibraryChange[];
+  changes: LibraryChange[];
   next_cursor: string;
   has_more: boolean;
+  history_generation?: string;
+}
+
+export function isFavoriteChange(change: LibraryChange): change is FavoriteLibraryChange {
+  return change.change_type === 'favorite_added' || change.change_type === 'favorite_removed';
+}
+
+export function isPlaylistSummaryChange(change: LibraryChange): change is PlaylistSummaryChange {
+  return change.change_type === 'playlist_summary';
 }
 
 /**
@@ -147,6 +181,10 @@ export function validateFavoriteSnapshot(snapshot: FavoriteLibrarySnapshot) {
     throw new Error('The favorite snapshot is missing its memberships.');
   }
 
+  for (const summary of snapshot.playlists ?? []) {
+    assertPlaylistSummary(summary);
+  }
+
   const targets = new Set<string>();
   const favoriteIds = new Set<string>();
   for (const item of snapshot.favorites) {
@@ -177,13 +215,14 @@ export function validateFavoriteChanges(page: FavoriteLibraryChanges) {
   const changeIds = new Set<string>();
   const revisions = new Set<number>();
   for (const change of page.changes) {
-    assertTarget(change.target);
     assertAccountId(change.change_id, 'library_change');
-    assertAccountId(change.favorite_id, 'favorite');
     assertRevision(change.revision);
     parseFavoriteServerDate(change.changed_at);
-    if (change.change_type !== 'favorite_added' && change.change_type !== 'favorite_removed') {
-      throw new Error('The favorite changes page contains an invalid change type.');
+    if (isFavoriteChange(change)) {
+      assertTarget(change.target);
+      assertAccountId(change.favorite_id, 'favorite');
+    } else if (isPlaylistSummaryChange(change)) {
+      assertPlaylistSummary(change.playlist);
     }
     if (change.revision > page.library_revision) {
       throw new Error('A favorite change revision exceeds the page revision.');
@@ -205,6 +244,19 @@ export function parseFavoriteServerDate(value: unknown) {
     throw new Error('The favorite response contains an invalid timestamp.');
   }
   return parsed;
+}
+
+function assertPlaylistSummary(summary: PlaylistSummary) {
+  if (
+    !isUuidV7TypedId(summary?.playlist_id, 'playlist') ||
+    typeof summary.name !== 'string' ||
+    !Number.isSafeInteger(summary.entry_count) ||
+    typeof summary.archived !== 'boolean' ||
+    !Number.isSafeInteger(summary.revision)
+  ) {
+    throw new Error('The library feed contains an invalid playlist summary.');
+  }
+  parseFavoriteServerDate(summary.updated_at);
 }
 
 function assertContractVersion(version: number) {

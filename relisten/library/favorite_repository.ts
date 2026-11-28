@@ -24,6 +24,8 @@ import {
 export interface FavoriteAccountScopeCapture {
   scopeId: string;
   generation: number;
+  /** Present on real account captures; playlist summaries are stored for this owner. */
+  userId?: string | null;
 }
 
 export interface FavoriteAccountScopeSource {

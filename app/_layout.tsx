@@ -31,13 +31,14 @@ import { PlayerPresentationOverlay } from '@/relisten/player/ui/player_presentat
 import { AudioAdjustmentCoordinator } from '@/relisten/player/audio_adjustments/audio_adjustment_coordinator';
 import { RelistenCastProvider } from '@/relisten/casting/cast_provider';
 import FlashMessage from 'react-native-flash-message';
+import { PlaylistToastHost } from '@/relisten/playlists/ui/playlist_toast';
 import { PlaybackHistoryReporterComponent } from '@/relisten/components/playback_history_reporter';
 import { LastFmReporterComponent } from '@/relisten/lastfm/lastfm_reporter_component';
 import { LastFmAuthListener } from '@/relisten/lastfm/lastfm_auth_listener';
 import * as Sentry from '@sentry/react-native';
 import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
 import { enableFreeze } from 'react-native-screens';
-import { AppState, LogBox, View } from 'react-native';
+import { AppState, LogBox, StyleSheet, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useCarPlaySetup } from '@/relisten/carplay/useCarPlaySetup';
 import {
@@ -47,6 +48,9 @@ import {
 } from '@/relisten/realm/root_services';
 import { AccountProvider, useAccountScope } from '@/relisten/accounts/account_context';
 import { FavoriteSyncCoordinator } from '@/relisten/library/favorite_sync_coordinator';
+import { PlaylistSyncCoordinator } from '@/relisten/playlists/sync/playlist_sync_coordinator';
+import { PlaylistPlaybackRecovery } from '@/relisten/playlists/ui/playlist_playback_recovery';
+import { PlaylistStartupPurge } from '@/relisten/playlists/ui/playlist_startup_purge';
 import {
   createRouteDebugSignature,
   describeNavigationStack,
@@ -220,6 +224,9 @@ function TabLayout() {
                 <RelistenCastProvider>
                   <PlaybackHistoryReporterComponent />
                   <FavoriteSyncCoordinator />
+                  <PlaylistSyncCoordinator />
+                  <PlaylistPlaybackRecovery />
+                  <PlaylistStartupPurge />
                   <LastFmReporterComponent />
                   <LastFmAuthListener />
                   <AudioAdjustmentCoordinator />
@@ -245,12 +252,14 @@ function TabLayout() {
                             <Slot />
                             <PlayerPresentationOverlay />
                             <View
-                              className="absolute inset-0"
                               pointerEvents="box-none"
-                              style={{ elevation: 2000, zIndex: 2000 }}
+                              // NativeWind v2 doesn't apply `inset-0`, which left the
+                              // message host with no width.
+                              style={[StyleSheet.absoluteFill, { elevation: 2000, zIndex: 2000 }]}
                             >
                               <FlashMessage position="top" />
                             </View>
+                            <PlaylistToastHost />
                           </SafeAreaProvider>
                         </GestureHandlerRootView>
                       </PlayerPresentationProvider>

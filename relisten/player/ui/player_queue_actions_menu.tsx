@@ -4,10 +4,14 @@ import { OverflowMenuTrigger } from '@/relisten/components/menus/overflow_menu_t
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
 import { PlayerQueueTrack } from '@/relisten/player/relisten_player_queue';
 import { playerTrackAccessibilityLabel } from './player_display_helpers';
+import { trackIdForSourceTrack } from '@/relisten/playlists/playlist_hooks';
+import { openAddToPlaylist } from '@/relisten/playlists/ui/playlist_navigation';
 import * as Haptics from 'expo-haptics';
+import { router } from 'expo-router';
 import { useCallback } from 'react';
 
 const ACTION_IDS = {
+  addToPlaylist: 'add-to-playlist',
   addToQueue: 'add-to-queue',
   playNext: 'play-next',
   playNow: 'play-now',
@@ -28,6 +32,11 @@ const ACTIONS: MenuAction[] = [
         id: ACTION_IDS.addToQueue,
         image: nativeMenuIcons.addToQueue,
         title: 'Add to End of Queue',
+      },
+      {
+        id: ACTION_IDS.addToPlaylist,
+        image: nativeMenuIcons.addToPlaylist,
+        title: 'Add to Playlist…',
       },
     ],
   },
@@ -73,6 +82,11 @@ export function PlayerQueueActionsMenu({
           player.queue.addTrackToEndOfQueue([
             PlayerQueueTrack.fromSourceTrack(queueTrack.sourceTrack),
           ]);
+          break;
+        case ACTION_IDS.addToPlaylist:
+          openAddToPlaylist(router, [trackIdForSourceTrack(queueTrack.sourceTrack)], {
+            linkable: false,
+          });
           break;
         case ACTION_IDS.remove:
           player.queue.removeTrackAtIndex(index);

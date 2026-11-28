@@ -1,3 +1,4 @@
+import { TrackDuration } from '@/relisten/components/track_duration';
 import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { SourceTrackOfflineIndicator } from '@/relisten/components/source/source_track_offline_indicator';
@@ -14,6 +15,8 @@ import {
   playerQueueDate,
 } from './player_display_helpers';
 import { PlayerQueueActionsMenu } from './player_queue_actions_menu';
+import type { LinkPosition } from '@/relisten/playlists/playlist_drag_slots';
+import { LinkRail } from '@/relisten/playlists/ui/link_rail';
 import { QueueDragHandle } from './player_queue_row';
 
 function CurrentTrackPlaybackButton() {
@@ -41,12 +44,17 @@ export function PlayerQueueTrayRow({
   index,
   current,
   showArtist,
+  link,
+  linkPlaying,
   drag,
 }: {
   track: PlayerQueueTrack;
   index: number;
   current: boolean;
   showArtist: boolean;
+  /** Where this track sits in a run of linked tracks, which shuffle keeps together. */
+  link?: LinkPosition;
+  linkPlaying: boolean;
   drag: () => void;
 }) {
   const player = useRelistenPlayer();
@@ -55,6 +63,7 @@ export function PlayerQueueTrayRow({
   const stackControls = fontScale >= 1.4;
   return (
     <View className={stackControls ? 'pl-4 pr-0.5' : 'flex-row items-center pl-4 pr-0.5'}>
+      <LinkRail link={link} active={linkPlaying} />
       <TouchableOpacity
         accessibilityRole="button"
         accessibilityLabel={playerTrackAccessibilityLabel(source)}
@@ -69,20 +78,17 @@ export function PlayerQueueTrayRow({
         }
         onPress={() => (current ? player.togglePauseResume() : player.playTrackAtIndex(index))}
       >
-        <View className="flex-row items-center gap-1.5">
-          <RelistenText
-            className={
-              current
-                ? 'min-w-0 flex-1 text-base font-semibold text-relisten-blue-200'
-                : 'min-w-0 flex-1 text-base font-semibold'
-            }
-            numberOfLines={stackControls ? undefined : 2}
-            selectable={false}
-          >
-            {playerDisplayTitle(source.title)}
-          </RelistenText>
-          <SourceTrackOfflineIndicator offlineInfo={source.offlineInfo} />
-        </View>
+        <RelistenText
+          className={
+            current
+              ? 'min-w-0 text-base font-semibold text-relisten-blue-200'
+              : 'min-w-0 text-base font-semibold'
+          }
+          numberOfLines={stackControls ? undefined : 2}
+          selectable={false}
+        >
+          {playerDisplayTitle(source.title)}
+        </RelistenText>
         <RelistenText
           className="mt-[3px] text-sm text-gray-300/70"
           numberOfLines={stackControls ? undefined : 1}
@@ -108,13 +114,10 @@ export function PlayerQueueTrayRow({
         }
       >
         {current && <CurrentTrackPlaybackButton />}
-        <View className="h-11 min-w-[44px] items-end justify-center">
-          <RelistenText
-            className="text-right text-base text-gray-400 tabular-nums"
-            selectable={false}
-          >
-            {source.humanizedDuration}
-          </RelistenText>
+        {/* Centered in the row beside the duration, as on show and playlist rows. */}
+        <SourceTrackOfflineIndicator offlineInfo={source.offlineInfo} />
+        <View className="ml-2 h-11 justify-center">
+          <TrackDuration duration={source.humanizedDuration} />
         </View>
         <View className="ml-3 flex-row items-center">
           <PlayerQueueActionsMenu index={index} queueTrack={track} iconAlignment="center" />

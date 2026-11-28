@@ -1,6 +1,21 @@
 import { Icon } from '@expo/ui';
 
 export const nativeMenuIcons = {
+  // Relisten has no profile photos, so the account is a plain person icon:
+  // outlined signed out, filled signed in, badged when sync needs attention.
+  // Material Symbols has one account icon, so Android shows the same for each.
+  account: Icon.select({
+    ios: 'person.crop.circle',
+    android: import('@expo/material-symbols/account_circle.xml'),
+  }),
+  accountSignedIn: Icon.select({
+    ios: 'person.crop.circle.fill',
+    android: import('@expo/material-symbols/account_circle.xml'),
+  }),
+  accountNeedsAttention: Icon.select({
+    ios: 'person.crop.circle.badge.exclamationmark',
+    android: import('@expo/material-symbols/account_circle.xml'),
+  }),
   audioAdjustments: Icon.select({
     ios: 'slider.horizontal.3',
     android: import('@expo/material-symbols/tune.xml'),
@@ -20,6 +35,10 @@ export const nativeMenuIcons = {
   clearHistory: Icon.select({
     ios: 'trash',
     android: import('@expo/material-symbols/delete_sweep.xml'),
+  }),
+  done: Icon.select({
+    ios: 'checkmark',
+    android: import('@expo/material-symbols/check.xml'),
   }),
   close: Icon.select({
     ios: 'xmark',
@@ -76,5 +95,53 @@ export const nativeMenuIcons = {
   switchSource: Icon.select({
     ios: 'rectangle.on.rectangle',
     android: import('@expo/material-symbols/swap_horiz.xml'),
+  }),
+  add: Icon.select({
+    ios: 'plus',
+    android: import('@expo/material-symbols/add.xml'),
+  }),
+  addToPlaylist: Icon.select({
+    ios: 'text.badge.plus',
+    android: import('@expo/material-symbols/playlist_add.xml'),
+  }),
+  edit: Icon.select({
+    ios: 'pencil',
+    android: import('@expo/material-symbols/edit.xml'),
+  }),
+  group: Icon.select({
+    ios: 'link',
+    android: import('@expo/material-symbols/link.xml'),
+  }),
+  moveDown: Icon.select({
+    ios: 'arrow.down',
+    android: import('@expo/material-symbols/arrow_downward.xml'),
+  }),
+  moveToBottom: Icon.select({
+    ios: 'arrow.down.to.line',
+    android: import('@expo/material-symbols/vertical_align_bottom.xml'),
+  }),
+  moveToTop: Icon.select({
+    ios: 'arrow.up.to.line',
+    android: import('@expo/material-symbols/vertical_align_top.xml'),
+  }),
+  moveUp: Icon.select({
+    ios: 'arrow.up',
+    android: import('@expo/material-symbols/arrow_upward.xml'),
+  }),
+  playlist: Icon.select({
+    ios: 'music.note.list',
+    android: import('@expo/material-symbols/queue_music.xml'),
+  }),
+  select: Icon.select({
+    ios: 'checklist',
+    android: import('@expo/material-symbols/checklist.xml'),
+  }),
+  ungroup: Icon.select({
+    ios: 'rectangle.split.3x1',
+    android: import('@expo/material-symbols/link_off.xml'),
+  }),
+  goTo: Icon.select({
+    ios: 'arrow.forward',
+    android: import('@expo/material-symbols/arrow_forward.xml'),
   }),
 } as const;

@@ -1,3 +1,4 @@
+import { accountPath } from '@/relisten/accounts/ui/account_routes';
 import { useEffect } from 'react';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
@@ -21,7 +22,10 @@ export function AuthCallbackRoute() {
       }
 
       if (active) {
-        router.replace('/relisten/account');
+        // Only a cold start from the callback link reaches this screen (see
+        // app/+native-intent.tsx), so there is no screen to return to; land on
+        // the account screen in the Relisten tab.
+        router.replace(accountPath('(relisten)'));
       }
     };
 

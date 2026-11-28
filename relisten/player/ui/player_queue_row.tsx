@@ -1,3 +1,4 @@
+import { TrackDuration } from '@/relisten/components/track_duration';
 import { RelistenText } from '@/relisten/components/relisten_text';
 import { SourceTrackOfflineIndicator } from '@/relisten/components/source/source_track_offline_indicator';
 import { useRelistenPlayer } from '@/relisten/player/relisten_player_hooks';
@@ -68,16 +69,13 @@ function QueueTrackRow({
             void Haptics.selectionAsync();
           }}
         >
-          <View className="min-w-0 flex-row items-start">
-            <RelistenText
-              className="flex-1 shrink text-lg font-semibold"
-              numberOfLines={stackMetadata ? undefined : 2}
-              selectable={false}
-            >
-              {displayTitle}
-            </RelistenText>
-            <SourceTrackOfflineIndicator offlineInfo={sourceTrack.offlineInfo} />
-          </View>
+          <RelistenText
+            className="shrink text-lg font-semibold"
+            numberOfLines={stackMetadata ? undefined : 2}
+            selectable={false}
+          >
+            {displayTitle}
+          </RelistenText>
           {/* Reserve the date at normal sizes; stack it when both labels need room to wrap. */}
           <View className={`mt-[3px] min-w-0 ${stackMetadata ? '' : 'flex-row items-baseline'}`}>
             <RelistenText
@@ -93,12 +91,10 @@ function QueueTrackRow({
             </RelistenText>
           </View>
         </TouchableOpacity>
-        <RelistenText
-          className="ml-2.5 min-w-[42px] text-right text-gray-300 tabular-nums"
-          selectable={false}
-        >
-          {sourceTrack.humanizedDuration}
-        </RelistenText>
+        <SourceTrackOfflineIndicator offlineInfo={sourceTrack.offlineInfo} />
+        <View className="ml-2.5">
+          <TrackDuration duration={sourceTrack.humanizedDuration} />
+        </View>
         {action}
       </View>
     </PlayerPanelRow>

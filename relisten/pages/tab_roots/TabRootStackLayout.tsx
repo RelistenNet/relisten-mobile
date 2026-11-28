@@ -50,6 +50,17 @@ export default function TabRootStackLayout() {
           }}
         />
 
+        {/* My Library's own screens; the stack takes screens directly, not in fragments. */}
+        {groupSegment === '(myLibrary)' && (
+          <Stack.Screen name="account/index" options={{ title: 'Account' }} />
+        )}
+        {groupSegment === '(myLibrary)' && (
+          <Stack.Screen name="account/username" options={{ title: 'Username' }} />
+        )}
+        {groupSegment === '(myLibrary)' && (
+          <Stack.Screen name="shows" options={{ title: 'Shows' }} />
+        )}
+
         <Stack.Screen
           name="downloading"
           options={{
@@ -74,7 +85,7 @@ export default function TabRootStackLayout() {
             title: '',
           }}
         />
-        <Stack.Screen name="venues" options={{ title: 'My Venues' }} />
+        <Stack.Screen name="venues" options={{ title: 'Venues' }} />
         <Stack.Screen name="venue/[venueId]/index" options={{ title: '' }} />
         <Stack.Screen
           name="[artistUuid]/year/[yearUuid]/index"
@@ -103,6 +114,9 @@ export default function TabRootStackLayout() {
         <Stack.Screen name="[artistUuid]/song/[songUuid]/index" options={{ title: '' }} />
         <Stack.Screen name="[artistUuid]/song/[songUuid]/tracks" options={{ title: '' }} />
         <Stack.Screen name="history/tracks" options={{ title: 'My History' }} />
+        <Stack.Screen name="playlists/index" options={{ title: 'Playlists' }} />
+        <Stack.Screen name="playlists/[playlistId]" options={{ title: '' }} />
+        <Stack.Screen name="playlists/recently-deleted" options={{ title: 'Recently Deleted' }} />
       </Stack>
     </View>
   );

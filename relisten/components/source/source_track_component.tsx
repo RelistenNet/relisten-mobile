@@ -1,3 +1,4 @@
+import { TrackDuration } from '@/relisten/components/track_duration';
 import { RelistenPlaybackState } from '@/modules/relisten-audio-player';
 import { ItemSeparator } from '@/relisten/components/item_separator';
 import { RelistenText } from '@/relisten/components/relisten_text';
@@ -8,24 +9,36 @@ import { useRelistenPlayerCurrentTrack } from '@/relisten/player/relisten_player
 import type { PlayShow } from '@/relisten/player/ui/source_track_actions_menu';
 import { SourceTrack } from '@/relisten/realm/models/source_track';
 import { type ReactNode } from 'react';
-import { TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import {
+  type AccessibilityRole,
+  type AccessibilityState,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { tw } from '@/relisten/util/tw';
 import { accessibleControlScale } from '@/relisten/util/accessible_control_scale';
 
 interface SourceTrackProps {
   actions?: ReactNode;
+  accessibilityRole?: AccessibilityRole;
+  accessibilityState?: AccessibilityState;
   sourceTrack: SourceTrack;
   isLastTrackInSet: boolean;
   onPress?: PlayShow;
+  onLongPress?: () => void;
   showTrackNumber?: boolean;
   disabled?: boolean;
 }
 
 export const SourceTrackComponent = ({
   actions,
+  accessibilityRole,
+  accessibilityState,
   sourceTrack,
   isLastTrackInSet,
   onPress,
+  onLongPress,
   showTrackNumber,
   disabled,
 }: SourceTrackProps) => {
@@ -43,8 +56,11 @@ export const SourceTrackComponent = ({
     <View className={tw('pl-6 pr-4', { 'opacity-60': disabled })}>
       <View className="flex-row items-center">
         <PressableView
+          accessibilityRole={accessibilityRole}
+          accessibilityState={accessibilityState}
           className="min-w-0 flex-1 flex-row items-center self-stretch"
           onPress={() => onPress?.(sourceTrack)}
+          onLongPress={onLongPress}
         >
           {shouldShowTrackNumber && !isPlayingThisTrack && (
             <View className="self-center" style={{ width: leadingColumnWidth }}>
@@ -70,9 +86,9 @@ export const SourceTrackComponent = ({
             <View className="flex-1" />
             <View className="shrink-0 flex-row items-center">
               <SourceTrackOfflineIndicator offlineInfo={sourceTrack.offlineInfo} />
-              <RelistenText className="ml-2 text-right text-base text-gray-400" selectable={false}>
-                {sourceTrack.humanizedDuration}
-              </RelistenText>
+              <View className="ml-2">
+                <TrackDuration duration={sourceTrack.humanizedDuration} />
+              </View>
             </View>
           </View>
         </PressableView>

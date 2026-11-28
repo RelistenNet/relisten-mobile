@@ -57,16 +57,20 @@ export function getAccountRuntimeConfig(): AccountRuntimeConfig {
       __DEV__ ? localAccountsOrigin : productionAccountsOrigin
     )
   );
+  // Production registers only the claimed HTTPS callbacks and the release client
+  // IDs, so a development build pointed at production auth signs in the same
+  // way a release build does.
+  const usesProductionAuth = issuer === productionIssuer;
   const clientId = configuredValue(
     platform === 'ios'
       ? process.env.EXPO_PUBLIC_RELISTEN_OIDC_IOS_CLIENT_ID
       : process.env.EXPO_PUBLIC_RELISTEN_OIDC_ANDROID_CLIENT_ID,
-    __DEV__ ? `relisten-mobile-${platform}-dev` : `relisten-mobile-${platform}`
+    usesProductionAuth ? `relisten-mobile-${platform}` : `relisten-mobile-${platform}-dev`
   );
-  const useUniversalLinkCallback = !__DEV__ && platform === 'ios';
-  const redirectUri = __DEV__
-    ? `net.relisten.mobile:/oauth2redirect/${platform}`
-    : `https://relisten.net/auth/mobile/${platform}/callback`;
+  const useUniversalLinkCallback = usesProductionAuth && platform === 'ios';
+  const redirectUri = usesProductionAuth
+    ? `https://relisten.net/auth/mobile/${platform}/callback`
+    : `net.relisten.mobile:/oauth2redirect/${platform}`;
 
   assertSecureOrigin(issuer, 'Relisten auth issuer');
   assertSecureOrigin(accountsOrigin, 'Relisten accounts origin');

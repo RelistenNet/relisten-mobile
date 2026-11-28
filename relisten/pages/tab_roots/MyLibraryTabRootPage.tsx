@@ -1,161 +1,92 @@
-import Plur from '@/relisten/components/plur';
-import { RefreshContextProvider } from '@/relisten/components/refresh_context';
-import { RelistenSectionData } from '@/relisten/components/relisten_section_list';
-import { RelistenText } from '@/relisten/components/relisten_text';
-import { ScrollScreen } from '@/relisten/components/screens/ScrollScreen';
-import { ShowCard } from '@/relisten/components/show_card';
-import { ShowFilterKey, ShowListContainer, useShowFilters } from '@/relisten/components/shows_list';
-import { useHistoryRecentlyPlayedShows } from '@/relisten/realm/models/history/playback_history_entry_repo';
+import { ListRow } from '@/relisten/components/list_row';
+import { ItemSeparator } from '@/relisten/components/item_separator';
+import { SubtitleText } from '@/relisten/components/row_subtitle';
+import { SectionHeader } from '@/relisten/components/section_header';
 import { Show } from '@/relisten/realm/models/show';
 import { useQuery } from '@/relisten/realm/schema';
-import { aggregateBy } from '@/relisten/util/group_by';
-import { useGroupSegment } from '@/relisten/util/routes';
-import { tw } from '@/relisten/util/tw';
-import { Link, useFocusEffect } from 'expo-router';
-import { PropsWithChildren, ReactNode, useCallback, useEffect, useMemo, useReducer } from 'react';
-import { TouchableOpacity, View, ViewProps } from 'react-native';
+import plur from 'plur';
+import { useAccount, useAccountScope } from '@/relisten/accounts/account_context';
+import { AccountEntryCard } from '@/relisten/accounts/ui/account_entry_card';
+import { accountPath } from '@/relisten/accounts/ui/account_routes';
+import { useAccountSyncSummary } from '@/relisten/accounts/ui/sync_status';
+import { nativeMenuIcons } from '@/relisten/components/menus/native_menu_icons';
+import Plur from '@/relisten/components/plur';
+import { RelistenText } from '@/relisten/components/relisten_text';
+import { ShowCard } from '@/relisten/components/show_card';
+import { usePlayerBottomScrollViewProps } from '@/relisten/player/ui/player_bar_layout';
+import { MyPlaylistsSection } from '@/relisten/playlists/ui/my_playlists_section';
+import { useHistoryRecentlyPlayedShows } from '@/relisten/realm/models/history/playback_history_entry_repo';
 import {
   useFavoriteCatalogUuids,
   useLibraryShowCatalogUuids,
   useRemainingDownloadsCount,
 } from '@/relisten/realm/root_services';
 import { logTabRootDebug } from '@/relisten/util/profile_logging';
-import { AccountEntryCard } from '@/relisten/accounts/ui/account_entry_card';
+import { useGroupSegment } from '@/relisten/util/routes';
+import { Link, Stack, useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect } from 'react';
+import { ScrollView, TouchableOpacity, View } from 'react-native';
 
-function MyLibrarySectionHeader({ children, className, ...props }: PropsWithChildren<ViewProps>) {
-  return (
-    <View className={tw('flex px-4 py-2', className)} {...props}>
-      <RelistenText className="text-m font-bold">{children}</RelistenText>
-    </View>
-  );
-}
-
-function RecentlyPlayedShows() {
-  const recentlyPlayedShows = useHistoryRecentlyPlayedShows();
+/**
+ * My Library answers two questions: what's mine (playlists I made, then the
+ * shows and venues I saved) and what have I been listening to. The account is
+ * a button in the header rather than a row in the content.
+ */
+export default function MyLibraryTabRootPage() {
+  const scrollProps = usePlayerBottomScrollViewProps({});
 
   useEffect(() => {
-    logTabRootDebug('myLibrary.recentlyPlayed mount');
-
-    return () => {
-      logTabRootDebug('myLibrary.recentlyPlayed unmount');
-    };
+    logTabRootDebug('myLibrary.page mount');
+    return () => logTabRootDebug('myLibrary.page unmount');
   }, []);
-
-  if (recentlyPlayedShows.length === 0) {
-    return <></>;
-  }
-
-  return (
-    <View>
-      <Link
-        href={{
-          pathname: '/relisten/tabs/(myLibrary)/history/tracks',
-        }}
-        asChild
-      >
-        <TouchableOpacity>
-          <MyLibrarySectionHeader>My Listening History&nbsp;›</MyLibrarySectionHeader>
-        </TouchableOpacity>
-      </Link>
-
-      <View className="w-full flex-row flex-wrap px-2">
-        {recentlyPlayedShows.map((show) => (
-          <ShowCard
-            show={show.show}
-            key={show.show.uuid}
-            sourceUuid={show.source.uuid}
-            className="my-1 shrink basis-1/2"
-          />
-        ))}
-      </View>
-    </View>
-  );
-}
-
-function FavoriteShows({ topContent }: { topContent?: ReactNode }) {
-  const showFilters = useShowFilters();
-  const allShows = useQuery(Show);
-  const libraryShowUuids = useLibraryShowCatalogUuids();
-  const [focusRevision, refreshAfterFocus] = useReducer((revision: number) => revision + 1, 0);
-
   useFocusEffect(
     useCallback(() => {
-      // Tab roots are frozen while another tab or a pushed detail screen is
-      // active. Re-read the external index on focus because React can suppress
-      // the render that accompanied a Realm notification while this tree froze.
-      refreshAfterFocus();
+      logTabRootDebug('myLibrary.page focus');
+      return () => logTabRootDebug('myLibrary.page blur');
     }, [])
   );
 
-  // Realm Results have a stable identity, so include the library set snapshot
-  // and focus revision explicitly. React Compiler can then see both reasons
-  // this derived array must be rebuilt.
-  const favoriteShows = useMemo(
-    () => [...allShows].filter((show) => libraryShowUuids.has(show.uuid)),
-    [allShows, focusRevision, libraryShowUuids]
+  return (
+    <>
+      <AccountHeaderButton />
+      <ScrollView {...scrollProps}>
+        <View className="pt-2">
+          <AccountEntryCard />
+          <ActiveDownloads />
+          <MyPlaylistsSection />
+          <FavoriteCategories />
+          <RecentListening />
+        </View>
+      </ScrollView>
+    </>
   );
+}
 
-  const favoriteShowsByArtist = useMemo<RelistenSectionData<Show>>(() => {
-    const showsByArtistUuid = aggregateBy(favoriteShows, (s) => s.artistUuid);
-
-    return Object.keys(showsByArtistUuid)
-      .sort((a, b) => {
-        const artistA = showsByArtistUuid[a][0].artist;
-        const artistB = showsByArtistUuid[b][0].artist;
-
-        return artistA.name.localeCompare(artistB.name);
-      })
-      .map((artistUuid) => {
-        const shows = showsByArtistUuid[artistUuid];
-        return {
-          sectionTitle: shows[0].artist.name,
-          data: shows,
-        };
-      });
-  }, [favoriteShows]);
-  const listExtraData = useMemo(
-    () => ({ focusRevision, libraryShowUuids }),
-    [focusRevision, libraryShowUuids]
-  );
-
-  const nonIdealState = {
-    noData: {
-      title: 'No Shows in Library',
-      description:
-        'After you tap the heart icon to add shows to your library, they will show up here.',
-    },
-  };
-  // TODO(alecgorge): if the user has a favorited source within that show, take them directly there
-
-  useEffect(() => {
-    logTabRootDebug('myLibrary.favoriteShows mount');
-
-    return () => {
-      logTabRootDebug('myLibrary.favoriteShows unmount');
-    };
-  }, []);
+/** Outlined when signed out, filled when signed in, badged when sync needs attention. */
+function AccountHeaderButton() {
+  const router = useRouter();
+  const { status } = useAccount();
+  const { isAuthenticated } = useAccountScope();
+  const summary = useAccountSyncSummary();
+  const signedIn = status === 'signedIn' && isAuthenticated;
+  const needsAttention = signedIn && summary.state === 'needsAttention';
 
   return (
-    <RefreshContextProvider>
-      <ShowListContainer
-        data={favoriteShowsByArtist}
-        extraData={listExtraData}
-        ListHeaderComponent={
-          <View className="pt-4">
-            {topContent}
-            <MyLibrarySectionHeader>
-              <Plur word="Show" count={favoriteShows.length} /> in My Library
-            </MyLibrarySectionHeader>
-          </View>
+    <Stack.Toolbar placement="right">
+      <Stack.Toolbar.Button
+        accessibilityLabel={
+          needsAttention ? 'Account, needs attention' : signedIn ? 'Account' : 'Sign in'
         }
-        filterOptions={{
-          persistence: { key: ['myLibrary', 'shows'].join('/') },
-        }}
-        // hide "My Library" filter since it's enabled by default here
-        filters={showFilters.filter((sf) => sf.persistenceKey !== ShowFilterKey.Library)}
-        nonIdealState={nonIdealState}
+        icon={
+          needsAttention
+            ? nativeMenuIcons.accountNeedsAttention
+            : signedIn
+              ? nativeMenuIcons.accountSignedIn
+              : nativeMenuIcons.account
+        }
+        onPress={() => router.push(accountPath('(myLibrary)'))}
       />
-    </RefreshContextProvider>
+    </Stack.Toolbar>
   );
 }
 
@@ -163,93 +94,89 @@ function ActiveDownloads() {
   const groupSegment = useGroupSegment();
   const downloadsCount = useRemainingDownloadsCount();
 
-  useEffect(() => {
-    logTabRootDebug('myLibrary.activeDownloads mount');
-
-    return () => {
-      logTabRootDebug('myLibrary.activeDownloads unmount');
-    };
-  }, []);
-
+  if (downloadsCount === 0) {
+    return null;
+  }
   return (
-    downloadsCount > 0 && (
-      <Link
-        href={{
-          pathname: `/relisten/tabs/${groupSegment}/downloading`,
-        }}
-        asChild
-      >
-        <TouchableOpacity className="mb-4 bg-relisten-blue-700 px-4 py-4">
-          <RelistenText className="text-center font-bold">
-            <Plur count={downloadsCount} word="track" /> downloading&nbsp;›
-          </RelistenText>
-        </TouchableOpacity>
-      </Link>
-    )
-  );
-}
-
-function FavoriteVenuesLink() {
-  const favoriteVenueIds = useFavoriteCatalogUuids('venue');
-
-  return (
-    <Link
-      href={{
-        pathname: '/relisten/tabs/(myLibrary)/venues',
-      }}
-      asChild
-    >
-      <TouchableOpacity>
-        <MyLibrarySectionHeader>
-          <Plur word="Venue" count={favoriteVenueIds.size} /> in My Library&nbsp;›
-        </MyLibrarySectionHeader>
+    <Link href={{ pathname: `/relisten/tabs/${groupSegment}/downloading` }} asChild>
+      <TouchableOpacity className="mb-4 bg-relisten-blue-700 px-4 py-4">
+        <RelistenText className="text-center font-bold">
+          <Plur count={downloadsCount} word="track" /> downloading&nbsp;›
+        </RelistenText>
       </TouchableOpacity>
     </Link>
   );
 }
 
-export default function MyLibraryTabRootPage() {
-  // TODO: listening history that shows all tracks
-  useEffect(() => {
-    logTabRootDebug('myLibrary.page mount');
-
-    return () => {
-      logTabRootDebug('myLibrary.page unmount');
-    };
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      logTabRootDebug('myLibrary.page focus');
-
-      return () => {
-        logTabRootDebug('myLibrary.page blur');
-      };
-    }, [])
-  );
+/** The listener's favorites, one row per kind, its count in the subtitle. */
+function FavoriteCategories() {
+  const showUuids = useLibraryShowCatalogUuids();
+  const venues = useFavoriteCatalogUuids('venue');
+  const shows = useQuery(Show, (rows) => rows.filtered('uuid IN $0', [...showUuids]), [showUuids]);
+  const artistCount = new Set(shows.map((show) => show.artistUuid)).size;
 
   return (
-    <ScrollScreen>
-      <FavoriteShows
-        topContent={
-          <>
-            <AccountEntryCard />
-            <ActiveDownloads />
-            <RecentlyPlayedShows />
-            <FavoriteVenuesLink />
-            <Link
-              href={{
-                pathname: '/relisten/tabs/(myLibrary)/history/statistics',
-              }}
-              asChild
-            >
-              <TouchableOpacity>
-                <MyLibrarySectionHeader>My Listening Statistics&nbsp;›</MyLibrarySectionHeader>
-              </TouchableOpacity>
-            </Link>
-          </>
-        }
-      />
-    </ScrollScreen>
+    <View>
+      <SectionHeader title="Favorites" />
+      <Link href={{ pathname: '/relisten/tabs/(myLibrary)/shows' }} asChild>
+        <ListRow
+          title="Shows"
+          subtitle={[
+            `${showUuids.size} ${plur('show', showUuids.size)}`,
+            artistCount > 0 ? `${artistCount} ${plur('artist', artistCount)}` : '',
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        />
+      </Link>
+      <ItemSeparator />
+      <Link href={{ pathname: '/relisten/tabs/(myLibrary)/venues' }} asChild>
+        <ListRow title="Venues" subtitle={`${venues.size} ${plur('venue', venues.size)}`} />
+      </Link>
+    </View>
+  );
+}
+
+/** The shows played most recently, with the full history and statistics a tap away. */
+function RecentListening() {
+  const recentlyPlayedShows = useHistoryRecentlyPlayedShows();
+
+  return (
+    <View>
+      <SectionHeader className="flex-row items-center">
+        <RelistenText className="flex-1 text-m font-bold">Recent Listening</RelistenText>
+        {recentlyPlayedShows.length > 0 && (
+          <Link href={{ pathname: '/relisten/tabs/(myLibrary)/history/tracks' }} asChild>
+            <TouchableOpacity accessibilityRole="button" hitSlop={8}>
+              <RelistenText className="font-semibold text-gray-300" selectable={false}>
+                See All&nbsp;›
+              </RelistenText>
+            </TouchableOpacity>
+          </Link>
+        )}
+      </SectionHeader>
+
+      {recentlyPlayedShows.length === 0 ? (
+        <SubtitleText className="px-4 py-3">Shows you play will show up here.</SubtitleText>
+      ) : (
+        <View className="w-full flex-row flex-wrap px-2 pt-2">
+          {recentlyPlayedShows.map((show) => (
+            <ShowCard
+              show={show.show}
+              key={show.show.uuid}
+              sourceUuid={show.source.uuid}
+              className="my-1 shrink basis-1/2"
+            />
+          ))}
+        </View>
+      )}
+
+      <View className="mt-2">
+        <ItemSeparator />
+      </View>
+      <Link href={{ pathname: '/relisten/tabs/(myLibrary)/history/statistics' }} asChild>
+        <ListRow title="Listening Statistics" subtitle="Your top artists, shows and songs" />
+      </Link>
+    </View>
   );
 }
