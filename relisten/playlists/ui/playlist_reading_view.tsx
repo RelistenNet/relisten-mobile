@@ -1,5 +1,4 @@
-import { PlaylistAudienceDetail } from './playlist_audience';
-import type { PlaylistAudience } from '../playlist_audience';
+import { playlistAudienceParts, type PlaylistAudience } from '../playlist_audience';
 import { MaterialIcons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -334,13 +333,15 @@ export function PlaylistViewHeader({
         {[
           playlistSizeLine(trackCount, 0),
           stats.durationSeconds > 0 ? humanDuration(stats.durationSeconds) : '',
+          // Counts join this line, not one of their own, so arriving after the
+          // playlist doesn't push the buttons down.
+          ...playlistAudienceParts(audience),
           status,
         ]
           .filter(Boolean)
           .join(' • ')}
       </RelistenText>
 
-      <PlaylistAudienceDetail audience={audience} />
       {notice}
       <View className="w-full flex-row pb-4" style={{ gap: 16 }}>
         <RelistenButton

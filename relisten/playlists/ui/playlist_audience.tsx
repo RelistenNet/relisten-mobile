@@ -1,29 +1,8 @@
 import { useEffect, useState } from 'react';
-import { RelistenText } from '@/relisten/components/relisten_text';
 import { useAccountScope, useAccountsApiClient } from '@/relisten/accounts/account_context';
-import { playlistAudienceLabel, type PlaylistAudience } from '../playlist_audience';
+import { type PlaylistAudience } from '../playlist_audience';
 import { usePlaylistSharingService } from '@/relisten/realm/root_services';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
-
-export function PlaylistAudienceDetail({ audience }: { audience?: PlaylistAudience }) {
-  const line = playlistAudienceLabel(audience);
-  const popularity = audience?.popularity;
-  return line ? (
-    <RelistenText className="pb-3 text-center text-gray-300">
-      {line}
-      {popularity
-        ? `\n${(['48h', '7d', '1y'] as const)
-            .flatMap((window) => {
-              const activity = popularity.windows[window];
-              return activity
-                ? [`${activity.plays.toLocaleString()} track plays in ${window}`]
-                : [];
-            })
-            .join(' · ')}\nMomentum ${Math.round(popularity.momentum_score * 100)}%`
-        : ''}
-    </RelistenText>
-  ) : null;
-}
 
 export function usePublicPlaylistAudience(code?: string | null) {
   const sharing = usePlaylistSharingService();

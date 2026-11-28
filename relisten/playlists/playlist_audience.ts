@@ -17,17 +17,24 @@ export function hasPublicPlaylistAudience(
   );
 }
 
-export function playlistAudienceLabel(audience?: PlaylistAudience | null) {
+/** Followers and 30-day plays, each as a short phrase; missing counts are left out. */
+export function playlistAudienceParts(audience?: PlaylistAudience | null): string[] {
   const followers = audience?.follower_count;
   const plays = audience?.popularity?.windows['30d'].plays;
-  return [
-    followers == null
-      ? null
-      : `${followers.toLocaleString()} ${followers === 1 ? 'follower' : 'followers'}`,
-    plays == null
-      ? null
-      : `${plays.toLocaleString()} ${plays === 1 ? 'track play' : 'track plays'} in 30 days`,
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  const parts: string[] = [];
+
+  if (followers != null) {
+    parts.push(`${followers.toLocaleString()} ${followers === 1 ? 'follower' : 'followers'}`);
+  }
+  if (plays != null) {
+    parts.push(
+      `${plays.toLocaleString()} ${plays === 1 ? 'track play' : 'track plays'} in 30 days`
+    );
+  }
+
+  return parts;
+}
+
+export function playlistAudienceLabel(audience?: PlaylistAudience | null) {
+  return playlistAudienceParts(audience).join(' · ');
 }
