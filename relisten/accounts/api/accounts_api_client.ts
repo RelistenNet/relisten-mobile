@@ -27,8 +27,16 @@ export class AccountsApiError extends Error {
  * a poll; its progress is logged at debug level so it doesn't crowd crash
  * reports' breadcrumbs. A request that never reaches the server is logged as
  * a warning either way.
+ *
+ * `timeoutMs` gives up on a request that hasn't answered in time. It fails as
+ * a lost response does (retryable, no status), since the server may still
+ * have received it. Without it, a request on a bad connection can wait as
+ * long as the system allows, about a minute on iOS.
  */
-export type AccountRequestOptions = RequestInit & { routine?: boolean };
+export type AccountRequestOptions = RequestInit & {
+  routine?: boolean;
+  timeoutMs?: number;
+};
 
 export interface AccountTokenSource {
   getAccessToken(capture: AccountScopeCapture, forceRefresh?: boolean): Promise<string>;
@@ -36,6 +44,29 @@ export interface AccountTokenSource {
 
 function isRetryableStatus(status: number) {
   return status === 408 || status === 429 || status >= 500;
+}
+
+/** A signal that aborts when `signal` does or `timeoutMs` passes, whichever comes first. */
+function withDeadline(signal: AbortSignal | null | undefined, timeoutMs: number) {
+  const controller = new AbortController();
+  let expired = false;
+  const abort = () => controller.abort();
+  const timer = setTimeout(() => {
+    expired = true;
+    abort();
+  }, timeoutMs);
+  signal?.addEventListener('abort', abort);
+  if (signal?.aborted) {
+    abort();
+  }
+  return {
+    signal: controller.signal,
+    expired: () => expired,
+    clear: () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', abort);
+    },
+  };
 }
 
 function assertRelativeAccountPath(path: string) {
@@ -55,7 +86,7 @@ export class AccountsApiTransport {
   async request<T>(
     path: string,
     accessToken: string | null,
-    { routine = false, ...options }: AccountRequestOptions
+    { routine = false, timeoutMs, ...options }: AccountRequestOptions
   ): Promise<T> {
     assertRelativeAccountPath(path);
     const method = options.method ?? 'GET';
@@ -69,20 +100,44 @@ export class AccountsApiTransport {
       headers.set('Authorization', `Bearer ${accessToken}`);
     }
 
-    let response: Response;
-
+    // The deadline covers the body too: on a bad connection it can stall after the headers.
+    const deadline = timeoutMs === undefined ? undefined : withDeadline(options.signal, timeoutMs);
     try {
-      response = await fetch(`${this.origin}${path}`, {
-        ...options,
-        credentials: 'omit',
-        headers,
-      });
+      return await this.exchange<T>(
+        `${this.origin}${path}`,
+        { ...options, credentials: 'omit', headers, signal: deadline?.signal ?? options.signal },
+        {
+          describe: `${method} ${logPath}`,
+          logProgress,
+          timedOut: () => deadline?.expired() ?? false,
+        }
+      );
+    } finally {
+      deadline?.clear();
+    }
+  }
+
+  /** Sends the request and reads its answer, mapping every failure to an `AccountsApiError`. */
+  private async exchange<T>(
+    url: string,
+    init: RequestInit,
+    {
+      describe,
+      logProgress,
+      timedOut,
+    }: { describe: string; logProgress: (message: string) => void; timedOut: () => boolean }
+  ): Promise<T> {
+    const lost = () =>
+      new AccountsApiError('The account service could not be reached.', null, null, true);
+    let response: Response;
+    try {
+      response = await fetch(url, init);
     } catch {
-      logger.warn(`${method} ${logPath} failed before response`);
-      throw new AccountsApiError('The account service could not be reached.', null, null, true);
+      logger.warn(`${describe} ${timedOut() ? 'timed out' : 'failed'} before response`);
+      throw lost();
     }
 
-    logProgress(`${method} ${logPath} completed status=${response.status}`);
+    logProgress(`${describe} completed status=${response.status}`);
 
     if (!response.ok) {
       const problem = await this.readProblem(response);
@@ -102,7 +157,11 @@ export class AccountsApiTransport {
     try {
       return (await response.json()) as T;
     } catch {
-      logger.warn(`${method} ${logPath} returned invalid JSON`);
+      if (timedOut()) {
+        logger.warn(`${describe} timed out reading its response`);
+        throw lost();
+      }
+      logger.warn(`${describe} returned invalid JSON`);
       throw new AccountsApiError(
         'The account service returned an invalid response.',
         502,

@@ -1,6 +1,7 @@
 import { ListRenderItem } from '@shopify/flash-list';
 import React, { ReactNode, useMemo } from 'react';
 import { useWindowDimensions, View } from 'react-native';
+import { Popularity, popularSortValue, type PopularitySnapshot } from '../realm/models/popularity';
 import { Show } from '../realm/models/show';
 import { FilterableList, FilterableListProps } from './filtering/filterable_list';
 import {
@@ -16,7 +17,11 @@ import Plur from './plur';
 import { RelistenText } from './relisten_text';
 import { SubtitleRow, SubtitleText } from './row_subtitle';
 import RowTitle from './row_title';
-import { SectionedListItem } from './sectioned_list_item';
+import {
+  SectionedListItem,
+  type SectionedListItemProps,
+  type TouchableOpacityRef,
+} from './sectioned_list_item';
 import { SourceTrackSucceededIndicator } from './source/source_track_offline_indicator';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import colors from 'tailwindcss/colors';
@@ -28,19 +33,7 @@ import {
   useShowHasOfflineTracks,
 } from '@/relisten/realm/root_services';
 import { useFavorite } from '@/relisten/library/favorite_hooks';
-import { normalizedVenueLocation } from '@/relisten/components/venue_presenters';
-
-function showVenueName(show: Show) {
-  return show.venue?.name ?? show.artistVenue?.venue.name;
-}
-
-function showVenueLocation(show: Show) {
-  return show.venue?.location ?? normalizedVenueLocation(show.artistVenue?.venue);
-}
-
-function showVenueLabel(show: Show) {
-  return [showVenueName(show), showVenueLocation(show)].filter(Boolean).join(', ');
-}
+import { showVenueLabel, showVenueLocation, showVenueName } from '@/relisten/util/venue_route';
 
 interface ShowListItemProps {
   show: Show;
@@ -50,31 +43,74 @@ interface ShowListItemProps {
 interface ShowListItemViewProps extends ShowListItemProps {
   isTrendingSort: boolean;
   venueLineCount: number;
+  popularity?: PopularitySnapshot;
 }
 
-const ShowListItemView = ({
-  show,
-  children,
-  isTrendingSort,
-  venueLineCount,
-}: ShowListItemViewProps) => {
-  const hasOfflineTracks = useShowHasOfflineTracks(show.uuid);
-  const favorite = useFavorite('show', show.uuid);
+/**
+ * What a show row prints. A show on the device supplies it through
+ * `showRowFields`; a search result builds it from the catalog's response.
+ */
+export interface ShowRowFields {
+  uuid: string;
+  displayDate: string;
+  hasSoundboardSource: boolean;
+  /** 0 when unrated. */
+  avgRating: number;
+  venueLabel: string;
+  sourceCount: number;
+  avgDurationLabel?: string;
+}
 
-  return (
-    <ShowLink
-      show={{
-        artist: show.artist,
-        showUuid: show.uuid,
-      }}
-      asChild
-    >
-      <SectionedListItem>
+export function showRowFields(show: Show): ShowRowFields {
+  return {
+    uuid: show.uuid,
+    displayDate: show.displayDate,
+    hasSoundboardSource: show.hasSoundboardSource,
+    avgRating: show.avgRating,
+    venueLabel: showVenueLabel(show),
+    sourceCount: show.sourceCount,
+    avgDurationLabel: show.humanizedAvgDuration(),
+  };
+}
+
+/**
+ * The show row itself, without its link: a show list wraps it in a
+ * `ShowLink`, and search passes its own `onPress`. `byline` adds a line for
+ * lists that mix artists; `children` adds lines below the venue.
+ */
+export const ShowRow = React.forwardRef<
+  TouchableOpacityRef,
+  SectionedListItemProps & {
+    fields: ShowRowFields;
+    popularity?: PopularitySnapshot | null;
+    isTrendingSort?: boolean;
+    venueLineCount?: number;
+    byline?: string;
+    children?: ReactNode;
+  }
+>(
+  (
+    {
+      fields,
+      popularity,
+      isTrendingSort = false,
+      venueLineCount = 2,
+      byline,
+      children,
+      ...pressable
+    },
+    ref
+  ) => {
+    const hasOfflineTracks = useShowHasOfflineTracks(fields.uuid);
+    const favorite = useFavorite('show', fields.uuid);
+
+    return (
+      <SectionedListItem ref={ref} {...pressable}>
         <Flex className="flex justify-between" full>
           <Flex className="flex-1 pr-2 grow" column>
             <Flex className="items-center flex-wrap" style={{ gap: 8 }}>
-              <RowTitle>{show.displayDate}</RowTitle>
-              {show.hasSoundboardSource && (
+              <RowTitle>{fields.displayDate}</RowTitle>
+              {fields.hasSoundboardSource && (
                 <RelistenText className="text-xs font-bold text-relisten-blue-600">
                   SBD
                 </RelistenText>
@@ -85,29 +121,57 @@ const ShowListItemView = ({
               {hasOfflineTracks && <SourceTrackSucceededIndicator />}
               <View className="grow">
                 <Flex className="items-center justify-end">
-                  <PopularityIndicator
-                    popularity={show.popularity?.snapshot()}
-                    isTrendingSort={isTrendingSort}
-                  />
+                  <PopularityIndicator popularity={popularity} isTrendingSort={isTrendingSort} />
                   <SubtitleText>
-                    {show.avgRating != 0 && '\u00A0\u00A0' + show.humanizedAvgRating() + '\u00A0★'}
+                    {fields.avgRating != 0 &&
+                      '\u00A0\u00A0' + fields.avgRating.toFixed(2) + '\u00A0★'}
                   </SubtitleText>
                 </Flex>
               </View>
             </Flex>
-            <SubtitleRow className="flex-row flex-1">
+            {byline ? <SubtitleText numberOfLines={1}>{byline}</SubtitleText> : null}
+            <SubtitleRow className="flex-row">
               <SubtitleText numberOfLines={venueLineCount} className="flex-shrink">
-                {showVenueLabel(show)}
+                {fields.venueLabel}
               </SubtitleText>
               <SubtitleText className="text-right pl-2">
-                <Plur word="tape" count={show.sourceCount} />
-                {'\u00A0•\u00A0' + show.humanizedAvgDuration()}
+                <Plur word="tape" count={fields.sourceCount} />
+                {fields.avgDurationLabel ? '\u00A0•\u00A0' + fields.avgDurationLabel : ''}
               </SubtitleText>
             </SubtitleRow>
             {children}
           </Flex>
         </Flex>
       </SectionedListItem>
+    );
+  }
+);
+
+ShowRow.displayName = 'ShowRow';
+
+const ShowListItemView = ({
+  show,
+  children,
+  isTrendingSort,
+  venueLineCount,
+  popularity,
+}: ShowListItemViewProps) => {
+  return (
+    <ShowLink
+      show={{
+        artist: show.artist,
+        showUuid: show.uuid,
+      }}
+      asChild
+    >
+      <ShowRow
+        fields={showRowFields(show)}
+        popularity={popularity}
+        isTrendingSort={isTrendingSort}
+        venueLineCount={venueLineCount}
+      >
+        {children}
+      </ShowRow>
     </ShowLink>
   );
 };
@@ -121,7 +185,12 @@ export const ShowListItem = ({ show, children }: ShowListItemProps) => {
   const venueLineCount = fontScale > 1.5 ? 3 : 2;
 
   return (
-    <ShowListItemView show={show} isTrendingSort={isTrendingSort} venueLineCount={venueLineCount}>
+    <ShowListItemView
+      show={show}
+      isTrendingSort={isTrendingSort}
+      venueLineCount={venueLineCount}
+      popularity={show.popularity?.snapshot()}
+    >
       {children}
     </ShowListItemView>
   );
@@ -141,7 +210,13 @@ export enum ShowFilterKey {
   Search = 'search',
 }
 
-export function useShowFilters(): Filter<ShowFilterKey, Show>[] {
+type ShowPopularity = ReadonlyMap<string, PopularitySnapshot | null>;
+
+function showPopularity(show: Show, byShow?: ShowPopularity) {
+  return byShow ? byShow.get(show.uuid) : show.popularity;
+}
+
+export function useShowFilters(byShow?: ShowPopularity): Filter<ShowFilterKey, Show>[] {
   const libraryIndex = useRootLibraryIndex();
   const libraryMembershipRevision = useLibraryMembershipRevision();
 
@@ -177,8 +252,8 @@ export function useShowFilters(): Filter<ShowFilterKey, Show>[] {
         sort: (shows) =>
           shows.sort(
             (a, b) =>
-              (a.popularity?.windows?.days30d?.hotScore ?? 0) -
-              (b.popularity?.windows?.days30d?.hotScore ?? 0)
+              popularSortValue(showPopularity(a, byShow)) -
+              popularSortValue(showPopularity(b, byShow))
           ),
       },
       {
@@ -189,7 +264,9 @@ export function useShowFilters(): Filter<ShowFilterKey, Show>[] {
         isNumeric: true,
         sort: (shows) =>
           shows.sort(
-            (a, b) => (a.popularity?.momentumScore ?? 0) - (b.popularity?.momentumScore ?? 0)
+            (a, b) =>
+              (showPopularity(a, byShow)?.momentumScore ?? 0) -
+              (showPopularity(b, byShow)?.momentumScore ?? 0)
           ),
       },
       {
@@ -233,7 +310,7 @@ export function useShowFilters(): Filter<ShowFilterKey, Show>[] {
         },
       },
     ];
-  }, [libraryIndex, libraryMembershipRevision]);
+  }, [byShow, libraryIndex, libraryMembershipRevision]);
 }
 
 const DEFAULT_SHOW_FILTER = {
@@ -245,6 +322,7 @@ const DEFAULT_SHOW_FILTER = {
 interface ShowListProps {
   filterOptions?: FilteringOptions<ShowFilterKey>;
   ListHeaderComponent?: React.ReactElement;
+  popularityByShow?: ShowPopularity;
   renderItem?: ListRenderItem<Show>;
   filters?: Filter<ShowFilterKey, Show>[];
 }
@@ -252,7 +330,7 @@ interface ShowListProps {
 export const ShowListContainer = (
   props: ShowListProps & Omit<FilterableListProps<Show>, 'renderItem'>
 ) => {
-  const filters = useShowFilters();
+  const filters = useShowFilters(props.popularityByShow);
 
   return (
     <FilteringProvider
@@ -267,6 +345,7 @@ export const ShowListContainer = (
 export const ShowList = ({
   data,
   renderItem,
+  popularityByShow,
   ...props
 }: ShowListProps & Omit<FilterableListProps<Show>, 'renderItem'>) => {
   const { fontScale } = useWindowDimensions();
@@ -281,11 +360,12 @@ export const ShowList = ({
         show={info.item}
         isTrendingSort={isTrendingSort}
         venueLineCount={venueLineCount}
+        popularity={Popularity.snapshot(showPopularity(info.item, popularityByShow))}
       />
     );
 
     return renderShowListItem;
-  }, [isTrendingSort, venueLineCount]);
+  }, [isTrendingSort, popularityByShow, venueLineCount]);
 
   return (
     <FilterableList data={data} renderItem={renderItem || showListRenderItemDefault} {...props} />

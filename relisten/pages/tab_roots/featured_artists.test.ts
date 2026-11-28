@@ -47,6 +47,28 @@ describe('selectFeaturedArtists', () => {
     expect(uuids).not.toContain('unapproved-automatic');
   });
 
+  it('ranks by the past year’s plays, which the rows show, over the last 30 days', () => {
+    const steady = {
+      ...artist('steady'),
+      popularity: { windows: { days30d: { plays: 10 }, days1y: { plays: 5_000 } } },
+    };
+    const recentSpike = {
+      ...artist('recent-spike'),
+      popularity: { windows: { days30d: { plays: 900 }, days1y: { plays: 1_000 } } },
+    };
+    const ranked = Array.from({ length: 49 }, (_, index) =>
+      artist(`ranked-${index}`, { plays: 2_000 })
+    ).map((item) => ({
+      ...item,
+      popularity: { windows: { days30d: { plays: 0 }, days1y: { plays: 2_000 } } },
+    }));
+
+    const uuids = selectFeaturedArtists([recentSpike, steady, ...ranked]).map((item) => item.uuid);
+
+    expect(uuids).toContain('steady');
+    expect(uuids).not.toContain('recent-spike');
+  });
+
   it('keeps the full catalog fallback when popularity is unavailable', () => {
     const selected = selectFeaturedArtists([
       artist('regular'),

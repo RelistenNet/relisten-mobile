@@ -65,8 +65,9 @@ import type { SonosHandoffRequest } from './sonos_api';
 import type { SonosHandoffOutcome } from './sonos_handoff';
 import type { SonosPlayback, SonosQueueEntry, SonosTransport } from './sonos_playback';
 import type { RoomQueueTracks } from './sonos_queue_tracks';
-import type { SonosRoomState } from './sonos_room_store';
-import { SonosSession } from './sonos_session';
+import type { RoomLeftBehind, SonosRoomChoice, SonosRoomState } from './sonos_room_store';
+import { NETWORK_LOSS_GRACE_MS, SonosSession } from './sonos_session';
+import { STALE_ROOM_MS } from './sonos_where_to_play';
 
 function track(uuid: string, title: string) {
   const sourceTrack = {
@@ -138,7 +139,7 @@ class FakeRoom {
 
   /** The room can't confirm its current item just now. */
   unconfirmed() {
-    this.state = { kind: 'checking', handle: this.handle, groupName: 'Office' };
+    this.state = { kind: 'checking', handle: this.handle, groupId: 'g1', groupName: 'Office' };
     this.notify();
   }
 
@@ -214,8 +215,39 @@ class FakeRoom {
     return order;
   };
   release = vi.fn(() => this.end());
-  handoffInFlight: { groupId: string; groupName: string } | undefined;
+  handoffInFlight: SonosRoomChoice | undefined;
   getHandoffInFlight = () => this.handoffInFlight;
+  /** Ends a handoff `holdNextHandoffUntilAbandoned` holds open, as cancelled. */
+  private abandon: (() => void) | undefined;
+  /** What an abandoned handoff left in its room; see `SonosRoomStore.abandonHandoff`. */
+  abandonedRoomLeft: RoomLeftBehind = 'quiet';
+  abandonHandoff = vi.fn(() => {
+    const abandon = this.abandon;
+    this.handoffInFlight = undefined;
+    this.abandon = undefined;
+    abandon?.();
+    return abandon ? Promise.resolve(this.abandonedRoomLeft) : undefined;
+  });
+  /** The next handoff stays open until it is abandoned. */
+  holdNextHandoffUntilAbandoned() {
+    this.handOff.mockImplementationOnce(
+      (request, groupName) =>
+        new Promise<SonosHandoffOutcome>((resolve) => {
+          this.handoffInFlight = { groupId: request.group_id, groupName };
+          this.abandon = () => resolve({ kind: 'cancelled' });
+        })
+    );
+  }
+  pauseRoomLeftBehind = vi.fn<(handle: string, groupId: string) => Promise<RoomLeftBehind>>(
+    async () => 'quiet'
+  );
+  /**
+   * Recently in use unless a test says otherwise, so Play goes to the room
+   * without asking (`playDestination`).
+   */
+  contact = { lastInUseAt: Date.now() as number | undefined, lastReadFailed: false };
+  getContact = () => this.contact;
+  noteChosen = vi.fn();
 
   private notify() {
     this.listeners.forEach((listener) => listener());
@@ -257,6 +289,8 @@ describe('SonosSession', () => {
   let session: SonosSession;
   let stop: () => void;
   let tracks: PlayerQueueTrack[];
+  /** The question about where to play; it answers the room unless a test says otherwise. */
+  const ask = vi.fn<(roomName: string) => Promise<'room' | 'phone'>>();
   /** Every recording these tests use, as the catalog would find them. */
   let catalog: PlayerQueueTrack[];
   const buildRoomQueue = vi.fn(
@@ -283,7 +317,8 @@ describe('SonosSession', () => {
     player.queue.replaceQueue(tracks, undefined);
     room = new FakeRoom();
     room.queue = { version: 1, entries: tracks.map(entry) };
-    session = new SonosSession(player, room as never);
+    ask.mockReset().mockResolvedValue('room');
+    session = new SonosSession(player, room as never, ask);
     stop = session.start(buildRoomQueue);
   });
 
@@ -809,7 +844,7 @@ describe('SonosSession', () => {
   });
 
   describe('shuffle', () => {
-    it('shuffles only the tracks after the playing one, and saves that order', async () => {
+    it('keeps what has played in place and shuffles the rest with the songs before it again', async () => {
       room.plays(tracks[1].identifier);
       await settle();
       // Added once the phone follows the room, so both hold three upcoming tracks.
@@ -824,10 +859,60 @@ describe('SonosSession', () => {
       player.queue.setShuffleState(PlayerShuffleState.SHUFFLE_ON);
       await settle();
 
-      const saved = room.queue.entries.map((row) => row.occurrenceId);
-      expect(saved.slice(0, 2)).toEqual([tracks[0].identifier, tracks[1].identifier]);
-      expect([...saved.slice(2)].sort()).toEqual([...upcoming].sort());
+      const saved = room.queue.entries;
+      // The room can't move what it has played, so tracks 0 and 1 stay first.
+      expect(saved.slice(0, 2)).toEqual([entry(tracks[0]), entry(tracks[1])]);
+      // After them: the three upcoming tracks and a new occurrence of track 0.
+      const shuffled = saved.slice(2);
+      expect(shuffled).toHaveLength(4);
+      expect(shuffled.filter((row) => upcoming.includes(row.occurrenceId))).toHaveLength(3);
+      const replay = shuffled.find((row) => !upcoming.includes(row.occurrenceId))!;
+      expect(replay.trackId).toBe(entry(tracks[0]).trackId);
+      expect(replay.occurrenceId).not.toBe(tracks[0].identifier);
       expect(messages()).toEqual([]);
+    });
+
+    it('shuffles a whole playlist when shuffle is turned on at its last track', async () => {
+      room.plays(tracks[2].identifier);
+      await settle();
+
+      player.queue.setShuffleState(PlayerShuffleState.SHUFFLE_ON);
+      await settle();
+
+      const after = room.queue.entries.slice(3).map((row) => row.trackId);
+      expect([...after].sort()).toEqual(
+        [entry(tracks[0]).trackId, entry(tracks[1]).trackId].sort()
+      );
+    });
+
+    it('removes the replayed songs not yet played when shuffle is turned off', async () => {
+      room.plays(tracks[2].identifier);
+      await settle();
+      player.queue.setShuffleState(PlayerShuffleState.SHUFFLE_ON);
+      await settle();
+
+      player.queue.setShuffleState(PlayerShuffleState.SHUFFLE_OFF);
+      await settle();
+
+      expect(room.queue.entries).toEqual(tracks.map(entry));
+      expect(player.queue.orderedTracks).toEqual(tracks);
+    });
+
+    it('doesn’t queue a song twice when shuffle is turned on, off and on again', async () => {
+      room.plays(tracks[2].identifier);
+      await settle();
+      for (const state of [
+        PlayerShuffleState.SHUFFLE_ON,
+        PlayerShuffleState.SHUFFLE_OFF,
+        PlayerShuffleState.SHUFFLE_ON,
+      ]) {
+        player.queue.setShuffleState(state);
+        await settle();
+      }
+
+      const after = room.queue.entries.slice(3).map((row) => row.trackId);
+      expect(after).toHaveLength(2);
+      expect(new Set(after).size).toBe(2);
     });
 
     it('keeps the track the room just moved to in place when shuffling', async () => {
@@ -962,6 +1047,131 @@ describe('SonosSession', () => {
     });
   });
 
+  describe('where Play goes', () => {
+    const LONGER_THAN_STALE = STALE_ROOM_MS + 60_000;
+
+    it('plays on a playing room without asking', async () => {
+      room.plays(tracks[0].identifier);
+      await settle();
+      room.contact.lastInUseAt = Date.now() - LONGER_THAN_STALE;
+
+      player.playTrackAtIndex(1);
+      await settle();
+
+      expect(ask).not.toHaveBeenCalled();
+      expect(room.command).toHaveBeenCalledWith({
+        action: 'skip',
+        occurrenceId: tracks[1].identifier,
+      });
+    });
+
+    it('plays on a room paused only a few minutes ago without asking', async () => {
+      room.plays(tracks[0].identifier, { paused: true });
+      await settle();
+      room.contact.lastInUseAt = Date.now() - 5 * 60_000;
+
+      player.resume();
+      await settle();
+
+      expect(ask).not.toHaveBeenCalled();
+      expect(room.command).toHaveBeenCalledWith({ action: 'play' });
+    });
+
+    it('asks about a room paused a while ago, and plays a tapped track on the phone', async () => {
+      room.plays(tracks[0].identifier, { paused: true });
+      await settle();
+      room.contact.lastInUseAt = Date.now() - LONGER_THAN_STALE;
+      ask.mockResolvedValueOnce('phone');
+
+      player.playTrackAtIndex(1);
+      await settle();
+
+      expect(ask).toHaveBeenCalledWith('Office');
+      expect(room.command).not.toHaveBeenCalled();
+      expect(room.release).toHaveBeenCalled();
+      // It was paused, so there is nothing to pause behind it.
+      expect(room.pauseRoomLeftBehind).not.toHaveBeenCalled();
+      expect(playbackSource.lastState()).toBe(PlaybackSource.Native);
+      expect(mocks.native.play).toHaveBeenCalledTimes(1);
+      expect(mocks.native.play.mock.calls[0][0].identifier).toBe(tracks[1].identifier);
+    });
+
+    it('resumes on the phone when asked about a room paused a while ago', async () => {
+      room.plays(tracks[1].identifier, { paused: true, positionMillis: 42000 });
+      await settle();
+      room.contact.lastInUseAt = Date.now() - LONGER_THAN_STALE;
+      ask.mockResolvedValueOnce('phone');
+
+      player.resume();
+      await settle();
+
+      expect(playbackSource.lastState()).toBe(PlaybackSource.Native);
+      expect(mocks.native.play).toHaveBeenCalledTimes(1);
+      expect(mocks.native.play.mock.calls[0][0].identifier).toBe(tracks[1].identifier);
+      expect(mocks.native.play.mock.calls[0][1]).toBe(42000);
+    });
+
+    it('keeps the show the listener chose while the question is open', async () => {
+      room.plays(tracks[0].identifier, { paused: true });
+      await settle();
+      room.contact.lastInUseAt = Date.now() - LONGER_THAN_STALE;
+      let answer: (destination: 'room' | 'phone') => void = () => {};
+      ask.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+      const show = [addedElsewhere('Jack Straw'), addedElsewhere('Dire Wolf')];
+
+      player.queue.replaceQueue(show, 0);
+      player.playTrackAtIndex(0);
+      await settle();
+      // A poll of the room arrives while the listener reads the question.
+      room.publish();
+      await settle();
+      answer('phone');
+      await settle();
+
+      expect(player.queue.orderedTracks).toEqual(show);
+      expect(mocks.native.play).toHaveBeenCalledTimes(1);
+      expect(mocks.native.play.mock.calls[0][0].identifier).toBe(show[0].identifier);
+    });
+
+    it('plays on the room the listener chooses, and doesn’t ask again right after', async () => {
+      room.plays(tracks[0].identifier, { paused: true });
+      await settle();
+      room.contact.lastInUseAt = Date.now() - LONGER_THAN_STALE;
+      room.noteChosen.mockImplementation(() => {
+        room.contact.lastInUseAt = Date.now();
+      });
+
+      player.resume();
+      await settle();
+      player.pause();
+      await settle();
+      player.resume();
+      await settle();
+
+      expect(ask).toHaveBeenCalledTimes(1);
+      expect(room.command.mock.calls.filter(([command]) => command.action === 'play')).toHaveLength(
+        2
+      );
+      expect(playbackSource.lastState()).toBe(PlaybackSource.Sonos);
+    });
+
+    it('plays on the phone, saying why, when the room can’t be reached', async () => {
+      room.plays(tracks[0].identifier);
+      await settle();
+      room.contact.lastReadFailed = true;
+
+      player.playTrackAtIndex(1);
+      await settle();
+
+      expect(ask).not.toHaveBeenCalled();
+      expect(playbackSource.lastState()).toBe(PlaybackSource.Native);
+      expect(mocks.native.play.mock.calls[0][0].identifier).toBe(tracks[1].identifier);
+      // Its last reading said it was playing, so it is paused if it can be reached.
+      expect(room.pauseRoomLeftBehind).toHaveBeenCalledWith('h1', 'g1');
+      expect(messages()).toEqual(['Office can’t be reached, so this is playing on your phone.']);
+    });
+  });
+
   describe('moving playback back to the phone', () => {
     it('plays on the phone at the room’s track and position', async () => {
       room.plays(tracks[1].identifier, { positionMillis: 42000 });
@@ -972,6 +1182,7 @@ describe('SonosSession', () => {
 
       expect(room.command).toHaveBeenCalledWith({ action: 'pause' });
       expect(room.release).toHaveBeenCalled();
+      expect(room.pauseRoomLeftBehind).not.toHaveBeenCalled();
       expect(playbackSource.lastState()).toBe(PlaybackSource.Native);
       expect(mocks.native.play).toHaveBeenCalledTimes(1);
       expect(mocks.native.play.mock.calls[0][0].identifier).toBe(tracks[1].identifier);
@@ -994,7 +1205,7 @@ describe('SonosSession', () => {
       expect(mocks.native.play).not.toHaveBeenCalled();
     });
 
-    it('keeps playback on the room when its queue can’t be read', async () => {
+    it('moves to the phone at the track it shows when the room’s queue can’t be read', async () => {
       room.plays(tracks[1].identifier, { paused: true });
       await settle();
       room.readQueue.mockResolvedValueOnce(undefined as never);
@@ -1002,33 +1213,308 @@ describe('SonosSession', () => {
       await session.transferToPhone();
       await settle();
 
-      expect(room.release).not.toHaveBeenCalled();
-      expect(playbackSource.lastState()).toBe(PlaybackSource.Sonos);
-      expect(messages()).toEqual(['Couldn’t move playback from Office.']);
+      expect(room.release).toHaveBeenCalled();
+      expect(playbackSource.lastState()).toBe(PlaybackSource.Native);
+      expect(currentTrackIdentifier.lastState()).toBe(tracks[1].identifier);
+      // The room was paused, so there is nothing to pause behind it.
+      expect(room.pauseRoomLeftBehind).not.toHaveBeenCalled();
+      expect(messages()).toEqual([]);
     });
 
-    it('keeps playback on the room when it doesn’t pause', async () => {
+    it('plays on the phone when the room can’t be reached, pausing it in the background', async () => {
+      room.plays(tracks[1].identifier, { positionMillis: 42000 });
+      await settle();
+      // Out of reach: the pause never answers.
+      room.command.mockImplementationOnce(() => new Promise(() => {}));
+      player.queue.replaceQueue(tracks, 1);
+
+      const moving = session.transferToPhone();
+      await vi.advanceTimersByTimeAsync(3000);
+      await moving;
+      await settle();
+
+      expect(playbackSource.lastState()).toBe(PlaybackSource.Native);
+      expect(mocks.native.play).toHaveBeenCalledTimes(1);
+      expect(mocks.native.play.mock.calls[0][0].identifier).toBe(tracks[1].identifier);
+      expect(room.pauseRoomLeftBehind).toHaveBeenCalledWith('h1', 'g1');
+    });
+
+    it('says so when the room it left behind couldn’t be paused', async () => {
       room.plays(tracks[1].identifier);
       await settle();
       room.command.mockResolvedValueOnce(false);
+      room.pauseRoomLeftBehind.mockResolvedValueOnce('mayStillPlay');
 
       await session.transferToPhone();
       await settle();
 
-      expect(room.release).not.toHaveBeenCalled();
+      expect(playbackSource.lastState()).toBe(PlaybackSource.Native);
+      expect(mocks.native.play).toHaveBeenCalledTimes(1);
+      expect(messages()).toEqual(['Couldn’t pause Office. It may still be playing.']);
+    });
+
+    it('plays a new show on the phone, abandoning its handoff to the room', async () => {
+      room.plays(tracks[0].identifier, { paused: true });
+      await settle();
+      room.holdNextHandoffUntilAbandoned();
+      const show = [addedElsewhere('Jack Straw'), addedElsewhere('Dire Wolf')];
+
+      player.queue.replaceQueue(show, 0);
+      player.playTrackAtIndex(0);
+      await settle();
+      expect(room.handOff).toHaveBeenCalled();
+
+      await session.transferToPhone();
+      await settle();
+
+      expect(room.abandonHandoff).toHaveBeenCalled();
+      expect(playbackSource.lastState()).toBe(PlaybackSource.Native);
+      expect(player.queue.orderedTracks).toEqual(show);
+      expect(mocks.native.play).toHaveBeenCalledTimes(1);
+      // The old room's queue is never read back over the new show.
+      expect(mocks.native.play.mock.calls[0][0].identifier).toBe(show[0].identifier);
+      expect(messages()).toEqual([]);
+    });
+
+    it('waits on the phone, without playing, when the phone goes offline', async () => {
+      room.plays(tracks[1].identifier, { positionMillis: 42000 });
+      await settle();
+
+      session.leaveRoomOffline();
+      await settle();
+
+      expect(room.release).toHaveBeenCalled();
+      expect(room.command).not.toHaveBeenCalled();
+      expect(playbackSource.lastState()).toBe(PlaybackSource.Native);
+      expect(currentTrackIdentifier.lastState()).toBe(tracks[1].identifier);
+      expect(mocks.native.play).not.toHaveBeenCalled();
+      expect(messages()).toEqual(['You’re offline, so playback moved from Office to this phone.']);
+    });
+
+    it('plays on the phone when the listener cancels a move to another room while music played', async () => {
+      room.plays(tracks[1].identifier, { positionMillis: 42000 });
+      await settle();
+      room.holdNextHandoffUntilAbandoned();
+      void session.moveQueueToRoom(handoffTo('g2'), 'Kitchen');
+      await settle();
+      // A poll of the room it leaves, which the move paused.
+      room.publish();
+      await settle();
+
+      await session.transferToPhone();
+      await settle();
+
+      expect(playbackSource.lastState()).toBe(PlaybackSource.Native);
+      expect(mocks.native.play).toHaveBeenCalledTimes(1);
+      expect(mocks.native.play.mock.calls[0][0].identifier).toBe(tracks[1].identifier);
+    });
+
+    it('resumes the phone, once, when the listener cancels a move from it while it played', async () => {
+      player.queue.replaceQueue(tracks, 0);
+      state.setState(RelistenPlaybackState.Playing);
+      room.holdNextHandoffUntilAbandoned();
+      const moving = session.moveQueueToRoom(handoffTo('g2'), 'Kitchen');
+      await settle();
+      expect(mocks.native.pause).toHaveBeenCalled();
+
+      await session.transferToPhone();
+      await moving;
+      await settle();
+
+      expect(mocks.native.resume).toHaveBeenCalledTimes(1);
+    });
+
+    it('resumes the room it was leaving, once, when Sonos refuses the other room', async () => {
+      room.plays(tracks[1].identifier);
+      await settle();
+      room.handOff.mockImplementationOnce(async () => {
+        room.handoffInFlight = { groupId: 'g2', groupName: 'Kitchen' };
+        await settle();
+        // Like the store: the handoff's end repeats the reading of the room this move paused.
+        room.handoffInFlight = undefined;
+        room.publish();
+        return { kind: 'refused', message: 'Kitchen can’t play this.', reconnect: false };
+      });
+
+      await session.moveQueueToRoom(handoffTo('g2'), 'Kitchen');
+      await settle();
+
+      const actions = room.command.mock.calls.map(([command]) => command.action);
+      expect(actions).toEqual(['pause', 'play']);
+    });
+
+    it('starts no second move while one is settling, and leaves playback alone', async () => {
+      room.plays(tracks[1].identifier);
+      await settle();
+      room.handoffInFlight = { groupId: 'g2', groupName: 'Kitchen' };
+
+      const outcome = await session.moveQueueToRoom(handoffTo('g3'), 'Den');
+
+      expect(outcome).toMatchObject({ kind: 'refused' });
+      expect(room.command).not.toHaveBeenCalled();
+      expect(room.handOff).not.toHaveBeenCalled();
+    });
+
+    it('keeps the phone paused when the listener paused before cancelling', async () => {
+      room.plays(tracks[1].identifier, { paused: true });
+      await settle();
+      // Out of reach: the Play never answers, and the listener pauses again.
+      room.command.mockImplementationOnce(() => new Promise(() => {}));
+      player.resume();
+      await settle();
+      player.pause();
+      await settle();
+
+      const moving = session.transferToPhone();
+      await vi.advanceTimersByTimeAsync(3000);
+      await moving;
+      await settle();
+
+      expect(playbackSource.lastState()).toBe(PlaybackSource.Native);
       expect(mocks.native.play).not.toHaveBeenCalled();
     });
 
-    it('keeps playback on the room when it still plays after pausing', async () => {
+    it('keeps the phone paused when another Sonos app paused the room', async () => {
       room.plays(tracks[1].identifier);
       await settle();
-      room.command.mockImplementationOnce(async () => true);
+      room.plays(tracks[1].identifier, { paused: true });
+      await settle();
 
       await session.transferToPhone();
       await settle();
 
-      expect(room.release).not.toHaveBeenCalled();
       expect(mocks.native.play).not.toHaveBeenCalled();
+    });
+
+    it('says why, and keeps playing on the phone, when it goes offline while moving the queue from it', async () => {
+      player.queue.replaceQueue(tracks, 0);
+      state.setState(RelistenPlaybackState.Playing);
+      room.holdNextHandoffUntilAbandoned();
+      void session.moveQueueToRoom(handoffTo('g2'), 'Kitchen');
+      await settle();
+
+      await session.leaveRoomOffline();
+      await settle();
+
+      expect(mocks.native.resume).toHaveBeenCalledTimes(1);
+      expect(messages()).toEqual(['You’re offline, so your queue stayed on this phone.']);
+    });
+
+    describe('a move from the phone left unconfirmed', () => {
+      async function moveUnconfirmed() {
+        state.setState(RelistenPlaybackState.Playing);
+        // The fake room leaves handoffs unconfirmed, as a drop does.
+        await session.moveQueueToRoom(handoffTo('g2'), 'Kitchen');
+        await settle();
+        expect(mocks.native.resume).not.toHaveBeenCalled();
+      }
+
+      it('keeps playing on the phone when the network had gone, however late the exit runs', async () => {
+        const networkLostAt = Date.now();
+        await vi.advanceTimersByTimeAsync(1000);
+        await moveUnconfirmed();
+        // Suspended JavaScript can run the coordinator's timer long after the grace.
+        await vi.advanceTimersByTimeAsync(60_000);
+
+        await session.leaveRoomOffline(networkLostAt);
+        await settle();
+
+        expect(mocks.native.resume).toHaveBeenCalledTimes(1);
+        expect(messages()).toEqual(['You’re offline, so your queue stayed on this phone.']);
+      });
+
+      it('keeps playing on the phone when the phone reported the loss a few seconds late', async () => {
+        await moveUnconfirmed();
+        await vi.advanceTimersByTimeAsync(5000);
+
+        await session.leaveRoomOffline(Date.now());
+        await settle();
+
+        expect(mocks.native.resume).toHaveBeenCalledTimes(1);
+      });
+
+      it('stays paused when the move failed long before the network went', async () => {
+        await moveUnconfirmed();
+        await vi.advanceTimersByTimeAsync(NETWORK_LOSS_GRACE_MS + 60_000);
+
+        await session.leaveRoomOffline(Date.now());
+        await settle();
+
+        expect(mocks.native.resume).not.toHaveBeenCalled();
+        expect(messages()).toEqual([]);
+      });
+
+      it('stays paused when the listener turns on offline mode', async () => {
+        await moveUnconfirmed();
+
+        await session.leaveRoomOffline(undefined);
+        await settle();
+
+        expect(mocks.native.resume).not.toHaveBeenCalled();
+      });
+
+      it('stays paused when the listener played and paused the phone since', async () => {
+        await moveUnconfirmed();
+        player.resume();
+        player.pause();
+        await settle();
+        mocks.native.resume.mockClear();
+
+        await session.leaveRoomOffline(Date.now());
+        await settle();
+
+        expect(mocks.native.resume).not.toHaveBeenCalled();
+      });
+
+      it('follows the room instead once the phone controls one', async () => {
+        await moveUnconfirmed();
+        room.plays(tracks[0].identifier, { paused: true });
+        await settle();
+
+        await session.leaveRoomOffline(Date.now());
+        await settle();
+
+        expect(mocks.native.resume).not.toHaveBeenCalled();
+        expect(mocks.native.play).not.toHaveBeenCalled();
+      });
+    });
+
+    it('plays on the phone when it goes offline while the listener’s Play is on its way', async () => {
+      room.plays(tracks[1].identifier, { paused: true, positionMillis: 42000 });
+      await settle();
+      // Out of reach: the Play never answers.
+      room.command.mockImplementationOnce(() => new Promise(() => {}));
+      player.resume();
+      await settle();
+
+      session.leaveRoomOffline();
+      await settle();
+
+      expect(playbackSource.lastState()).toBe(PlaybackSource.Native);
+      expect(mocks.native.play).toHaveBeenCalledTimes(1);
+      expect(mocks.native.play.mock.calls[0][0].identifier).toBe(tracks[1].identifier);
+    });
+
+    it('does nothing offline when no room is playing', () => {
+      session.leaveRoomOffline();
+
+      expect(room.release).not.toHaveBeenCalled();
+      expect(messages()).toEqual([]);
+    });
+
+    it('says so when an abandoned show lands in the room and can’t be paused', async () => {
+      room.plays(tracks[0].identifier, { paused: true });
+      await settle();
+      room.holdNextHandoffUntilAbandoned();
+      room.abandonedRoomLeft = 'mayStillPlay';
+
+      player.queue.replaceQueue([addedElsewhere('Jack Straw')], 0);
+      player.playTrackAtIndex(0);
+      await settle();
+      await session.transferToPhone();
+      await settle();
+
+      expect(messages()).toEqual(['Couldn’t pause Office. It may still be playing.']);
     });
 
     it('says only that the room ended when it ends during the move', async () => {
@@ -1047,6 +1533,17 @@ describe('SonosSession', () => {
     });
   });
 });
+
+/** A handoff to `groupId`; the fake store doesn't read its queue. */
+function handoffTo(groupId: string): SonosHandoffRequest {
+  return {
+    request_id: 'request-1',
+    group_id: groupId,
+    occurrences: [],
+    start_index: 0,
+    position_millis: 0,
+  };
+}
 
 function wire(queueTrack: PlayerQueueTrack) {
   return {

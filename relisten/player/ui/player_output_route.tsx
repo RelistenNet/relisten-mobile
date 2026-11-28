@@ -4,7 +4,7 @@
 import { type AudioOutputKind, nativePlayer } from '@/modules/relisten-audio-player';
 import { useRelistenCastStatus } from '@/relisten/casting/cast_ui';
 import { RelistenText } from '@/relisten/components/relisten_text';
-import { useSonosRoomName } from '@/relisten/sonos/sonos_room_store';
+import { useSonosHandoffInFlight, useSonosRoomName } from '@/relisten/sonos/sonos_room_store';
 import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 
@@ -14,11 +14,14 @@ export type PlayerOutputKind = 'sonos' | 'cast' | Exclude<AudioOutputKind, 'buil
 export interface PlayerOutput {
   name: string;
   kind: PlayerOutputKind;
+  /** The queue is still on its way to this Sonos room. */
+  connecting?: boolean;
 }
 
 /** The destination and its kind; null while playing on this phone's speaker. */
 export function usePlayerOutput(): PlayerOutput | null {
   const sonosRoomName = useSonosRoomName();
+  const handoff = useSonosHandoffInFlight();
   const { isCasting, deviceName } = useRelistenCastStatus();
   // The native module reports the system route on iOS and Android, not on web.
   const hasNativeRoute = Platform.OS !== 'web';
@@ -37,6 +40,10 @@ export function usePlayerOutput(): PlayerOutput | null {
     return () => subscription.remove();
   }, [hasNativeRoute]);
 
+  // A handoff decides where music goes next, even while an older room is still controlled.
+  if (handoff) {
+    return { name: handoff.groupName, kind: 'sonos', connecting: true };
+  }
   if (sonosRoomName !== undefined) {
     return { name: sonosRoomName, kind: 'sonos' };
   }
@@ -62,14 +69,20 @@ export function PlayerOutputRoute({
   /** `cn`, not `className`: NativeWind v2 rewrites className on custom components into style. */
   cn?: string;
 }) {
-  const name = usePlayerOutput()?.name;
-  if (!name) {
+  const output = usePlayerOutput();
+  if (!output) {
     return null;
   }
 
+  const label = playerOutputLabel(output);
   return (
-    <RelistenText cn={cn} numberOfLines={1} accessibilityLabel={`Audio output: ${name}`}>
-      {name}
+    <RelistenText cn={cn} numberOfLines={1} accessibilityLabel={`Audio output: ${label}`}>
+      {label}
     </RelistenText>
   );
+}
+
+/** `Kitchen`, or `Connecting to Kitchen…` while the queue is on its way. */
+export function playerOutputLabel({ name, connecting }: PlayerOutput): string {
+  return connecting ? `Connecting to ${name}…` : name;
 }

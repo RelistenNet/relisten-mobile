@@ -49,6 +49,7 @@ export interface PopularityResource {
     '48h': PopularityWindowResource;
     '7d': PopularityWindowResource;
     '30d': PopularityWindowResource;
+    '1y'?: PopularityWindowResource;
   };
 }
 
@@ -200,6 +201,7 @@ export interface SongWithShowsResource extends SongDetailResource {
 
 export interface SongShowResource {
   show: ShowSummaryResource;
+  song_popularity: PopularityResource | null;
   timings: {
     single_song: SourceStatisticsResource | null;
     multi_song: SourceStatisticsResource | null;
@@ -229,6 +231,12 @@ export interface ImportedSongResource {
   setlist_show_count: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface CatalogPerformanceSummary {
+  show_id: ShowId;
+  song_id: SongId | ImportedSongId;
+  song: string;
 }
 
 export interface ImportedSongWithShowsResource extends ImportedSongResource {
@@ -298,6 +306,12 @@ export interface TrackResource {
   created_at: string;
   updated_at: string;
   normalization: TrackNormalizationResource;
+  /**
+   * Whether the catalog would let a playlist add this track now. The server
+   * refuses an add without it, so the app checks it before adding a search
+   * result. Optional because older responses and cached fixtures omit it.
+   */
+  playable?: boolean;
 }
 
 export interface SourceSetResource {
@@ -326,7 +340,7 @@ export interface LinkResource {
   updated_at: string;
 }
 
-export interface SourceResource {
+export interface SourceSummaryResource {
   id: SourceId;
   artist_id: ArtistId;
   show_id: ShowId;
@@ -351,6 +365,9 @@ export interface SourceResource {
   created_at: string;
   updated_at: string;
   imported_venue: ImportedVenueResource | null;
+}
+
+export interface SourceResource extends SourceSummaryResource {
   sets: SourceSetResource[];
   links: LinkResource[];
 }

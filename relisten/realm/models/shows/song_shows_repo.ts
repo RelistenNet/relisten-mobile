@@ -5,12 +5,14 @@ import {
   RelistenApiResponse,
   RelistenApiResponseType,
 } from '@/relisten/api/client';
+import { decodeUuidCatalogId } from '@/relisten/api/catalog/identity';
 import { useRelistenApi } from '@/relisten/api/context';
 import { applyImportedSongDetail, applySongDetail } from '../../catalog_apply';
 import { useNetworkOnlyResults } from '../../network_backed_behavior_hooks';
 import { mergeNetworkBackedResults } from '../../network_backed_results';
 import { useRealm } from '../../schema';
 import { ensureCatalogArtist, useArtist } from '../artist_repo';
+import { catalogPopularitySnapshot, type PopularitySnapshot } from '../popularity';
 import { Show } from '../show';
 import { importedSongUuid, SongItem } from '../song_view';
 import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
@@ -18,6 +20,8 @@ import { useShouldMakeNetworkRequests } from '@/relisten/util/netinfo';
 export interface SongShows {
   song: SongItem | null;
   shows: Show[];
+  /** Canonical song results have their own play statistics for each show. */
+  popularityByShow?: ReadonlyMap<string, PopularitySnapshot | null>;
   isAvailable: boolean;
 }
 const EMPTY_SONG_SHOWS: SongShows = { song: null, shows: [], isAvailable: false };
@@ -34,11 +38,25 @@ export async function fetchSongShows(
     await ensureCatalogArtist(realm, api, artistUuid);
     if (songId.startsWith('song_')) {
       const response = await api.song(songId, { force });
-      if (!response.data || response.superseded) return { ...response, data: undefined };
-      const result = realm.write(() => applySongDetail(realm, artistUuid, response.data!, songId));
+      const { data } = response;
+      if (!data || response.superseded) {
+        return { ...response, data: undefined };
+      }
+      const result = realm.write(() => applySongDetail(realm, artistUuid, data, songId));
+      const popularityByShow = new Map(
+        data.shows.map(({ show, song_popularity }) => [
+          decodeUuidCatalogId(show.id, 'show'),
+          catalogPopularitySnapshot(song_popularity),
+        ])
+      );
       return {
         ...response,
-        data: { song: new SongItem(result.song), shows: result.shows, isAvailable: true },
+        data: {
+          song: new SongItem(result.song),
+          shows: result.shows,
+          popularityByShow,
+          isAvailable: true,
+        },
       };
     }
     const response = await api.importedSong(importedSongUuid(songId), { force });

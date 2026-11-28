@@ -6,11 +6,29 @@
 
 import {
   AccountsApiError,
+  type AccountRequestOptions,
   type AuthorizedAccountsApiClient,
 } from '@/relisten/accounts/api/accounts_api_client';
 import type { wireOccurrences } from './sonos_playback';
 
 const BASE = '/v1/integrations/sonos';
+
+/**
+ * How long a Sonos request may wait for an answer. Without a limit, a request
+ * on a bad connection (a parking garage, say) waits about a minute, and the
+ * phone can't tell the room is out of reach until it gives up. Each call
+ * already treats a lost response as "maybe arrived".
+ */
+const SONOS_REQUEST_TIMEOUT_MS = 8000;
+
+/** An account request with Sonos's time limit. Every Sonos call goes through it. */
+export function sonosRequest<T>(
+  api: AuthorizedAccountsApiClient,
+  path: string,
+  options: AccountRequestOptions = {}
+): Promise<T> {
+  return api.request<T>(path, { timeoutMs: SONOS_REQUEST_TIMEOUT_MS, ...options });
+}
 
 /** A Sonos group: one room, or rooms playing together. */
 export interface SonosGroup {
@@ -65,17 +83,16 @@ export function isSonosUnavailable(error: unknown): boolean {
 }
 
 export async function fetchSonosLinked(api: AuthorizedAccountsApiClient): Promise<boolean> {
-  const body = await api.request<{ linked?: unknown }>(`${BASE}/connection`);
+  const body = await sonosRequest<{ linked?: unknown }>(api, `${BASE}/connection`);
   return body?.linked === true;
 }
 
 /** Starts linking the account; the URL opens Sonos sign-in in the system browser. */
 export async function beginSonosConnect(api: AuthorizedAccountsApiClient): Promise<string> {
-  const body = await api.request<{ authorization_url?: unknown }>(
+  const body = await sonosRequest<{ authorization_url?: unknown }>(
+    api,
     `${BASE}/connect?return_to=mobile`,
-    {
-      method: 'POST',
-    }
+    { method: 'POST' }
   );
   if (typeof body?.authorization_url !== 'string') {
     throw new Error('The Sonos sign-in link is missing.');
@@ -103,7 +120,7 @@ export function groupSonosHouseholds(groups: readonly SonosGroup[]): SonosGroup[
 }
 
 export async function fetchSonosGroups(api: AuthorizedAccountsApiClient): Promise<SonosGroup[]> {
-  const body = await api.request<unknown>(`${BASE}/groups`);
+  const body = await sonosRequest<unknown>(api, `${BASE}/groups`);
   if (!Array.isArray(body)) {
     throw new Error('The Sonos rooms response is invalid.');
   }
@@ -122,7 +139,7 @@ export async function startSonosHandoff(
   request: SonosHandoffRequest
 ): Promise<SonosHandoffReceipt> {
   return parseReceipt(
-    await api.request<unknown>(`${BASE}/handoffs`, {
+    await sonosRequest<unknown>(api, `${BASE}/handoffs`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request),
@@ -136,7 +153,7 @@ export async function fetchSonosHandoff(
   requestId: string
 ): Promise<SonosHandoffReceipt> {
   return parseReceipt(
-    await api.request<unknown>(`${BASE}/handoffs/${encodeURIComponent(requestId)}`),
+    await sonosRequest<unknown>(api, `${BASE}/handoffs/${encodeURIComponent(requestId)}`),
     requestId
   );
 }

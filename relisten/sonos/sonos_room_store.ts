@@ -4,10 +4,16 @@ import {
   AccountsApiError,
   type AuthorizedAccountsApiClient,
 } from '@/relisten/accounts/api/accounts_api_client';
-import { isSonosUnavailable, needsSonosReconnect, type SonosHandoffRequest } from './sonos_api';
+import {
+  fetchSonosGroups,
+  isSonosUnavailable,
+  needsSonosReconnect,
+  type SonosHandoffRequest,
+} from './sonos_api';
 import { runSonosHandoff, type SonosHandoffOutcome } from './sonos_handoff';
 import {
   isSonosPlaybackLive,
+  isSonosPlaying,
   reachedTransport,
   type SonosPlayback,
   type SonosQueue,
@@ -49,7 +55,13 @@ export interface SonosEnding {
  */
 export type SonosRoomState =
   | { kind: 'none'; ended?: SonosEnding }
-  | { kind: 'checking'; handle: string; groupName: string; pending?: SonosTransportAction }
+  | {
+      kind: 'checking';
+      handle: string;
+      groupId: string;
+      groupName: string;
+      pending?: SonosTransportAction;
+    }
   | {
       kind: 'active';
       playback: SonosPlayback;
@@ -75,10 +87,31 @@ export type SonosQueueSave =
   | { kind: 'refused'; message: string }
   | { kind: 'failed' };
 
-/** A handoff this device started and hasn't finished. */
-export interface SonosHandoffInFlight {
+/** A Sonos group the listener chose, by id and the name it shows. */
+export interface SonosRoomChoice {
   groupId: string;
   groupName: string;
+}
+
+/**
+ * What became of a room this device left (`pauseRoomLeftBehind`):
+ * - `quiet`: it isn't playing, or its playback ended;
+ * - `chosenAgain`: the listener has since chosen that room again, so its
+ *   music is theirs and is left playing;
+ * - `mayStillPlay`: it couldn't be read or paused.
+ */
+export type RoomLeftBehind = 'quiet' | 'chosenAgain' | 'mayStillPlay';
+
+/**
+ * How recently the room this device controls was in use, for deciding where
+ * the next Play goes.
+ * - `lastInUseAt`: when this device last saw the room playing, or the listener
+ *   last chose it (`noteChosen`), in epoch milliseconds.
+ * - `lastReadFailed`: the latest read of the room didn't get an answer.
+ */
+export interface SonosRoomContact {
+  lastInUseAt: number | undefined;
+  lastReadFailed: boolean;
 }
 
 /**
@@ -102,6 +135,12 @@ type Subscriber = () => void;
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+/** Reads (and pauses) of a room this device left, before saying it may still be playing. */
+const PAUSE_LEFT_BEHIND_ATTEMPTS = 4;
+
+/** Nobody has used the room yet, or this device no longer controls one. */
+const NO_CONTACT: SonosRoomContact = { lastInUseAt: undefined, lastReadFailed: false };
+
 export interface SonosRoomTiming {
   wait: (ms: number) => Promise<void>;
   confirmIntervalMs: number;
@@ -122,7 +161,16 @@ export interface SonosRoomTiming {
 export class SonosRoomStore {
   private isCurrentScope: () => boolean = () => true;
   private state: SonosRoomState = { kind: 'none' };
-  private handoffInFlight: SonosHandoffInFlight | undefined;
+  /**
+   * The handoff this device started and hasn't finished: the room chosen, the
+   * run that follows it to the end, and `abandon`, which ends the wait for it
+   * (see `abandonHandoff`).
+   */
+  private handoff:
+    | { room: SonosRoomChoice; running: Promise<SonosHandoffOutcome>; abandon: () => void }
+    | undefined;
+  /** How this device last heard from the current handle; see `SonosRoomContact`. */
+  private contact: SonosRoomContact = NO_CONTACT;
   /**
    * A repeat mode sent but not yet confirmed by a reading taken after it. It
    * is shown over readings meanwhile, since a poll sent before the command
@@ -135,6 +183,12 @@ export class SonosRoomStore {
   private reading: { handle: string; playback: Promise<SonosPlayback | undefined> } | undefined;
   /** Each group's last volume this run, shown while the room is read again. */
   private readonly volumes = new Map<string, SonosVolume>();
+  /**
+   * Room names from the latest room list, by group ID. The server keeps the
+   * name a group had when the queue moved there, and Sonos keeps a group's ID
+   * while speakers join or leave it, so the list's name is the current one.
+   */
+  private listedNames = new Map<string, string>();
   private readonly subscribers = new Set<Subscriber>();
   private api: AuthorizedAccountsApiClient | undefined;
   private account: string | undefined;
@@ -155,7 +209,15 @@ export class SonosRoomStore {
 
   getState = () => this.state;
 
-  getHandoffInFlight = () => this.handoffInFlight;
+  /** The room the queue is on its way to, while a handoff this device started settles. */
+  getHandoffInFlight = (): SonosRoomChoice | undefined => this.handoff?.room;
+
+  getContact = (): SonosRoomContact => this.contact;
+
+  /** The listener chose to keep playing on the room. */
+  noteChosen() {
+    this.contact = { ...this.contact, lastInUseAt: Date.now() };
+  }
 
   /**
    * The signed-in account's client, or undefined when signed out. Any change
@@ -175,56 +237,241 @@ export class SonosRoomStore {
     this.account = account;
     this.handedOff = undefined;
     this.reading = undefined;
+    this.contact = NO_CONTACT;
+    this.listedNames = new Map();
     this.set({ kind: 'none' });
   }
 
+  /**
+   * Takes in a fresh room list. The controlled room shows its listed name.
+   * A room missing from the list may have been ungrouped, so it is read
+   * again; the server ends control if the room no longer plays the queue.
+   * Absence alone doesn't end it, since the list may be older than the read.
+   */
+  noteRooms(groups: readonly { id: string; name: string }[]) {
+    this.listedNames = new Map(groups.map((group) => [group.id, group.name]));
+
+    const current = this.state;
+    const room = controlledRoom(current);
+    if (!room) {
+      return;
+    }
+
+    const listedName = this.listedNames.get(room.groupId);
+    if (listedName === undefined) {
+      void this.refresh();
+      return;
+    }
+
+    if (current.kind === 'active' && current.playback.groupName !== listedName) {
+      this.set({ ...current, playback: { ...current.playback, groupName: listedName } });
+    } else if (current.kind === 'checking' && current.groupName !== listedName) {
+      this.set({ ...current, groupName: listedName });
+    }
+  }
+
+  /** Reads the room list for `noteRooms`; a failed read changes nothing. */
+  private async readRoomList() {
+    const scope = this.accountScope();
+    if (!scope) {
+      return;
+    }
+
+    try {
+      const groups = await fetchSonosGroups(scope.api);
+      if (scope.stillCurrent()) {
+        this.noteRooms(groups);
+      }
+    } catch {
+      // The next foreground or Play On tries again.
+    }
+  }
+
   /** Takes over the handle a handoff just returned, remembers the room, and reads it. */
-  adopt(handle: string, groupName: string) {
-    this.set({ kind: 'checking', handle, groupName });
+  adopt(handle: string, { groupId, groupName }: SonosRoomChoice) {
+    // The room was just chosen and is starting the queue.
+    this.contact = { lastInUseAt: Date.now(), lastReadFailed: false };
+    this.set({ kind: 'checking', handle, groupId, groupName });
     this.remember(handle);
     void this.refresh();
   }
 
   /**
    * Moves `request`'s queue to its room and, once the room takes it, controls
-   * that room. One handoff runs at a time: a second, chosen while the first is
-   * still settling, is refused before anything is sent, so the queue never
-   * ends up playing in two rooms.
+   * that room. A second handoff, chosen while the first is still settling, is
+   * refused before anything is sent.
+   *
+   * `abandonHandoff` resolves it at once as `cancelled`. The handoff itself
+   * runs on, since the server may already be loading the room, and a new one
+   * may start meanwhile; an abandoned handoff that lands is paused rather
+   * than controlled, so the queue doesn't play in two places.
    */
   async handOff(request: SonosHandoffRequest, groupName: string): Promise<SonosHandoffOutcome> {
     const scope = this.accountScope();
     if (!scope) {
       return { kind: 'uncertain', reconnect: false };
     }
-    if (this.handoffInFlight) {
+    if (this.handoff) {
       return {
         kind: 'refused',
-        message: `Your queue is still moving to ${this.handoffInFlight.groupName}.`,
+        message: stillMovingMessage(this.handoff.room.groupName),
         reconnect: false,
       };
     }
 
-    this.handoffInFlight = { groupId: request.group_id, groupName };
+    const room: SonosRoomChoice = { groupId: request.group_id, groupName };
+    let abandon = () => {};
+    const abandoned = new Promise<SonosHandoffOutcome>((resolve) => {
+      abandon = () => resolve({ kind: 'cancelled' });
+    });
+    // `runHandoff` first looks at `this.handoff` after its first await, by which time it is set.
+    const running = this.runHandoff(scope, request, room);
+    this.handoff = { room, running, abandon };
     this.notify();
+    return Promise.race([running, abandoned]);
+  }
+
+  /**
+   * Stops waiting for the handoff in flight, if any, so the phone can play.
+   * Resolves once the abandoned handoff ends, with what it left in its room.
+   */
+  abandonHandoff(): Promise<RoomLeftBehind> | undefined {
+    const handoff = this.handoff;
+    if (!handoff) {
+      return undefined;
+    }
+
+    this.endHandoff();
+    handoff.abandon();
+    return handoff.running.then(
+      (outcome) => this.leftBehindBy(outcome, handoff.room),
+      () => 'mayStillPlay' as const
+    );
+  }
+
+  /** What an abandoned handoff left in its room, once it ended. */
+  private leftBehindBy(
+    outcome: SonosHandoffOutcome,
+    room: SonosRoomChoice
+  ): Promise<RoomLeftBehind> | RoomLeftBehind {
+    switch (outcome.kind) {
+      case 'playing':
+        return this.pauseRoomLeftBehind(outcome.handle, room.groupId);
+      case 'refused':
+        // Nothing reached the room.
+        return 'quiet';
+      case 'uncertain':
+        // The room may have taken the queue, and there is no handle to pause it with.
+        return 'mayStillPlay';
+      case 'cancelled':
+        // Only the race in `handOff` resolves as cancelled; the run itself never does.
+        return 'mayStillPlay';
+    }
+  }
+
+  /** Follows a handoff to its end, and controls the room it lands in unless it was abandoned. */
+  private async runHandoff(
+    scope: AccountScope,
+    request: SonosHandoffRequest,
+    room: SonosRoomChoice
+  ): Promise<SonosHandoffOutcome> {
+    // False once this handoff is abandoned (`abandonHandoff` pauses a room it lands in).
+    const stillWanted = () => this.handoff?.room === room;
     try {
+      // The runner reports a handoff that settled after the account changed as uncertain.
       const outcome = await runSonosHandoff(scope.api, request, scope.stillCurrent, {
         wait: this.timing.wait,
       });
-      // The runner reports a handoff that settled after the account changed as uncertain.
-      if (outcome.kind === 'playing') {
+      if (outcome.kind === 'playing' && stillWanted()) {
         // Recorded before adopting: adopting routes the player at once, and the
         // session's first read of the new room compares against this order.
         this.handedOff = {
           handle: outcome.handle,
           occurrenceIds: request.occurrences.map((occurrence) => occurrence.occurrence_id),
         };
-        this.adopt(outcome.handle, groupName);
+        this.adopt(outcome.handle, room);
       }
       return outcome;
     } finally {
-      this.handoffInFlight = undefined;
-      this.notify();
+      if (stillWanted()) {
+        this.endHandoff();
+      }
     }
+  }
+
+  private endHandoff() {
+    this.handoff = undefined;
+    this.notify();
+  }
+
+  /**
+   * Pauses a room this device no longer controls: one it moved playback
+   * away from, or one an abandoned handoff landed in. It reads the room
+   * first, since a pause names the track it is meant for. A room that can't
+   * name its track yet (just loaded), or that moved on and refuses the
+   * pause, is read and tried again.
+   *
+   * The listener may choose the same room again while this runs (Cancel,
+   * then the room again). If the room takes that queue, it plays their new
+   * choice, so this checks before every read and pause and leaves it alone
+   * (`chosenAgain`).
+   */
+  async pauseRoomLeftBehind(handle: string, groupId: string): Promise<RoomLeftBehind> {
+    const scope = this.accountScope();
+    if (!scope) {
+      return 'mayStillPlay';
+    }
+    const room: RoomScope = { ...scope, handle };
+
+    for (let attempt = 0; attempt < PAUSE_LEFT_BEHIND_ATTEMPTS; attempt += 1) {
+      if (attempt > 0) {
+        await this.timing.wait(this.timing.confirmIntervalMs);
+      }
+      if (await this.chosenAgain(groupId)) {
+        return 'chosenAgain';
+      }
+
+      let playback: SonosPlayback;
+      try {
+        playback = await fetchSonosPlayback(room.api, handle);
+      } catch {
+        return (await this.chosenAgain(groupId)) ? 'chosenAgain' : 'mayStillPlay';
+      }
+      if (!isSonosPlaybackLive(playback) || !isSonosPlaying(playback)) {
+        return 'quiet';
+      }
+      if (await this.chosenAgain(groupId)) {
+        return 'chosenAgain';
+      }
+      const itemId = playback.occurrence?.itemId;
+      if (!itemId) {
+        continue;
+      }
+
+      const sent = await this.send(
+        room,
+        transportBody({ action: 'pause' }, randomUUID(), {
+          itemId,
+          queueVersion: playback.queueVersion,
+        })
+      );
+      if (sent.kind !== 'refused') {
+        return sent.kind === 'accepted' ? 'quiet' : 'mayStillPlay';
+      }
+    }
+    return 'mayStillPlay';
+  }
+
+  /**
+   * Whether this device controls `groupId` again. A handoff to it still
+   * settling is waited out first: if Sonos refuses it, the room was never
+   * the listener's again, and whatever it plays is paused after all.
+   */
+  private async chosenAgain(groupId: string): Promise<boolean> {
+    while (this.handoff?.room.groupId === groupId) {
+      await this.handoff.running;
+    }
+    return controlledRoom(this.state)?.groupId === groupId;
   }
 
   /**
@@ -246,14 +493,20 @@ export class SonosRoomStore {
    * controlling, or restores the room it chose before the app closed when
    * `canRestore` allows (nothing else is playing). Another device's rooms
    * are never taken over here. Reading state never sends a command.
+   *
+   * Only a room that is playing right now is restored. A paused room still
+   * holds our queue, but the listener may be far from it (paused at home,
+   * opening the app on the bus), and restoring would send the next Play
+   * there. A paused room stays remembered; Play On still offers it.
    */
   async discover(canRestore: () => boolean) {
-    if (this.handoffInFlight) {
+    if (this.handoff) {
       // The handoff decides the room; an older remembered one mustn't win meanwhile.
       return;
     }
     if (this.currentHandle() !== undefined) {
-      await this.refresh();
+      // Speakers may have been grouped differently while the app was away.
+      await Promise.all([this.refresh(), this.readRoomList()]);
       return;
     }
 
@@ -274,11 +527,13 @@ export class SonosRoomStore {
       }
       if (!isSonosPlaybackLive(playback)) {
         this.remember(undefined);
-      } else if (canRestore()) {
+      } else if (isSonosPlaying(playback) && canRestore()) {
         this.apply(playback);
+        // The server's name dates from the handoff; the list has the current one.
+        await this.readRoomList();
       }
-      // A live room that can't be restored now (the phone started playing
-      // meanwhile) stays remembered for the next launch.
+      // A live room that isn't restored now (paused, or the phone started
+      // playing meanwhile) stays remembered for the next launch.
     } catch (error) {
       if (isSonosUnavailable(error)) {
         this.remember(undefined);
@@ -311,8 +566,15 @@ export class SonosRoomStore {
   private async read(room: RoomScope): Promise<SonosPlayback | undefined> {
     try {
       const playback = await fetchSonosPlayback(room.api, room.handle);
-      return room.stillCurrent() ? this.apply(playback) : undefined;
+      if (!room.stillCurrent()) {
+        return undefined;
+      }
+      this.contact = { ...this.contact, lastReadFailed: false };
+      return this.apply(playback);
     } catch (error) {
+      if (room.stillCurrent()) {
+        this.contact = { ...this.contact, lastReadFailed: true };
+      }
       const gone = isSonosUnavailable(error) || needsSonosReconnect(error);
       if (gone && room.stillCurrent()) {
         this.endPlayback({
@@ -598,7 +860,8 @@ export class SonosRoomStore {
   }
 
   /** Shows a reading of the current handle, and resolves the reading now shown. */
-  private apply(playback: SonosPlayback): SonosPlayback | undefined {
+  private apply(reading: SonosPlayback): SonosPlayback | undefined {
+    const playback = this.withListedName(reading);
     if (!isSonosPlaybackLive(playback)) {
       this.endPlayback({
         roomName: playback.groupName,
@@ -613,12 +876,16 @@ export class SonosRoomStore {
       this.set({
         kind: 'checking',
         handle: playback.handle,
+        groupId: playback.groupId,
         groupName: playback.groupName,
         pending,
       });
       return undefined;
     }
 
+    if (isSonosPlaying(playback)) {
+      this.contact = { ...this.contact, lastInUseAt: Date.now() };
+    }
     if (current.kind !== 'active' || current.playback.handle !== playback.handle) {
       const volume = this.volumes.get(playback.groupId);
       this.set({ kind: 'active', playback, pending, volume });
@@ -648,6 +915,13 @@ export class SonosRoomStore {
     return playback;
   }
 
+  private withListedName(playback: SonosPlayback): SonosPlayback {
+    const listedName = this.listedNames.get(playback.groupId);
+    return listedName === undefined || listedName === playback.groupName
+      ? playback
+      : { ...playback, groupName: listedName };
+  }
+
   private showVolume(current: ActiveRoom, volume: SonosVolume) {
     this.volumes.set(current.playback.groupId, volume);
     this.set({ ...current, volume });
@@ -657,6 +931,7 @@ export class SonosRoomStore {
   private endPlayback(ended: SonosEnding | undefined) {
     this.remember(undefined);
     this.reading = undefined;
+    this.contact = NO_CONTACT;
     this.set(ended === undefined ? { kind: 'none' } : { kind: 'none', ended });
   }
 
@@ -708,6 +983,25 @@ export class SonosRoomStore {
 
   private notify() {
     this.subscribers.forEach((subscriber) => subscriber());
+  }
+}
+
+/** What to say while a handoff to `groupName` is still settling. */
+export function stillMovingMessage(groupName: string): string {
+  return `Your queue is still moving to ${groupName}.`;
+}
+
+/** The handle and group of the room this device controls, if any. */
+export function controlledRoom(
+  state: SonosRoomState
+): { handle: string; groupId: string } | undefined {
+  switch (state.kind) {
+    case 'active':
+      return { handle: state.playback.handle, groupId: state.playback.groupId };
+    case 'checking':
+      return { handle: state.handle, groupId: state.groupId };
+    case 'none':
+      return undefined;
   }
 }
 
@@ -811,8 +1105,8 @@ export function useSonosRepeat(): SonosRepeat | undefined {
   return useSyncExternalStore(sonosRoom.subscribe, repeatSnapshot, repeatSnapshot);
 }
 
-/** The handoff in flight from this device, so a second room can't be chosen meanwhile. */
-export function useSonosHandoffInFlight(): SonosHandoffInFlight | undefined {
+/** The room a handoff from this device is moving the queue to, so a second can't be chosen meanwhile. */
+export function useSonosHandoffInFlight(): SonosRoomChoice | undefined {
   return useSyncExternalStore(
     sonosRoom.subscribe,
     sonosRoom.getHandoffInFlight,

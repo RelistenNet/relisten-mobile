@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { type ComponentRef, type Ref } from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import Realm from 'realm';
@@ -37,10 +38,26 @@ interface SourceSetsProps {
   selection?: TrackSelection;
   /** Starts selecting with this track checked, from a long press or the track's menu. */
   onStartSelection?: (sourceTrackUuid: string) => void;
+  /** Files a search pointed at: highlighted, never played. */
+  focusedTrackUuids?: ReadonlySet<string>;
+  /** Attached to the first focused file in setlist order, to scroll it into view. */
+  firstFocusedRowRef?: Ref<ComponentRef<typeof View>>;
 }
 
-export const SourceSets = ({ source, playShow, selection, onStartSelection }: SourceSetsProps) => {
+export const SourceSets = ({
+  source,
+  playShow,
+  selection,
+  onStartSelection,
+  focusedTrackUuids,
+  firstFocusedRowRef,
+}: SourceSetsProps) => {
   const sortedSets = sortSetsByIndex(source.sourceSets);
+  const firstFocusedUuid = focusedTrackUuids
+    ? sortedSets
+        .flatMap((set) => sortTracksByPosition(set.sourceTracks))
+        .find((track) => focusedTrackUuids.has(track.uuid))?.uuid
+    : undefined;
 
   return (
     <View>
@@ -52,6 +69,9 @@ export const SourceSets = ({ source, playShow, selection, onStartSelection }: So
           playShow={playShow}
           selection={selection}
           onStartSelection={onStartSelection}
+          focusedTrackUuids={focusedTrackUuids}
+          firstFocusedUuid={firstFocusedUuid}
+          firstFocusedRowRef={firstFocusedRowRef}
         />
       ))}
       <View className="px-4">
@@ -67,6 +87,9 @@ interface SourceSetProps {
   playShow: PlayShow;
   selection?: TrackSelection;
   onStartSelection?: (sourceTrackUuid: string) => void;
+  focusedTrackUuids?: ReadonlySet<string>;
+  firstFocusedUuid?: string;
+  firstFocusedRowRef?: Ref<ComponentRef<typeof View>>;
 }
 
 export const SourceSetComponent = ({
@@ -75,6 +98,9 @@ export const SourceSetComponent = ({
   playShow,
   selection,
   onStartSelection,
+  focusedTrackUuids,
+  firstFocusedUuid,
+  firstFocusedRowRef,
 }: SourceSetProps) => {
   const userSettings = useUserSettings();
   const isOfflineTab = useIsOfflineTab();
@@ -121,6 +147,8 @@ export const SourceSetComponent = ({
             key={t.uuid}
             sourceTrack={t}
             isLastTrackInSet={idx == sourceSet.sourceTracks.length - 1}
+            highlighted={focusedTrackUuids?.has(t.uuid)}
+            rowRef={t.uuid === firstFocusedUuid ? firstFocusedRowRef : undefined}
             onPress={playable ? playShow : undefined}
             onLongPress={onStartSelection && (() => onStartSelection(t.uuid))}
             actions={

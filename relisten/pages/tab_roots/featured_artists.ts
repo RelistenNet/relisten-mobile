@@ -1,9 +1,10 @@
+import { displayedPlays, popularSortValue } from '@/relisten/realm/models/popularity';
 interface BrowseArtist {
   uuid: string;
   isFavorite: boolean;
   isAutomaticallyCreated(): boolean;
   isFeatured(): boolean;
-  popularity?: { windows?: { days30d?: { plays?: number } } };
+  popularity?: Parameters<typeof displayedPlays>[0];
 }
 
 const POPULAR_ARTIST_LIMIT = 50;
@@ -15,16 +16,13 @@ export function selectFeaturedArtists<T extends BrowseArtist>(
   const candidates = artists.filter(
     (artist) => !isFavorite(artist) && !artist.isAutomaticallyCreated()
   );
+  // The most-played artists by the plays their rows show (the past year's).
   const hasPopularity = candidates.some(
-    (artist) => artist.popularity?.windows?.days30d?.plays !== undefined
+    (artist) => displayedPlays(artist.popularity) !== undefined
   );
   const popular = hasPopularity
     ? [...candidates]
-        .sort(
-          (a, b) =>
-            (b.popularity?.windows?.days30d?.plays ?? 0) -
-            (a.popularity?.windows?.days30d?.plays ?? 0)
-        )
+        .sort((a, b) => popularSortValue(b.popularity) - popularSortValue(a.popularity))
         .slice(0, POPULAR_ARTIST_LIMIT)
     : candidates;
 

@@ -19,7 +19,7 @@ import { ItemSeparator } from '@/relisten/components/item_separator';
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { useRelistenCastStatus, useShouldRenderCastButton } from '@/relisten/casting/cast_ui';
 import { OutputVolumeRow } from '@/relisten/player/ui/output_volume';
-import { usePlayerOutput } from '@/relisten/player/ui/player_output_route';
+import { type PlayerOutput, usePlayerOutput } from '@/relisten/player/ui/player_output_route';
 import { groupSonosHouseholds, type SonosGroup } from '@/relisten/sonos/sonos_api';
 import { HANDOFF_UNCONFIRMED_MESSAGE } from '@/relisten/sonos/sonos_handoff';
 import { useSonosRoom } from '@/relisten/sonos/sonos_room_store';
@@ -56,30 +56,26 @@ export default function PlayOnSheet() {
 }
 
 /**
- * This phone, checked while it is where music plays. While a Sonos room
- * plays, tapping it moves playback back here at the same track and position.
+ * This phone, checked while it is where music plays. While this device
+ * controls a Sonos room or is moving the queue to one, tapping it keeps or
+ * moves playback here, whether or not the room can be reached
+ * (`SonosSession.transferToPhone`).
  */
 function ThisPhoneRow() {
   const router = useRouter();
-  const outputRoute = usePlayerOutput()?.name;
-  const sonosPlaying = useSonosRoom().kind === 'active';
-  const here = !outputRoute;
+  // Covers a handoff started for a new show while a room plays, which never passes through this sheet.
+  const output = usePlayerOutput();
+  const onOrMovingToSonos = output?.kind === 'sonos';
   return (
     <OutputRow
       icon={<MaterialIcons name="smartphone" size={22} color={ICON_COLOR} />}
       title={Platform.OS === 'ios' ? 'This iPhone' : 'This Phone'}
-      subtitle={
-        sonosPlaying
-          ? `Tap to move playback from ${outputRoute}`
-          : outputRoute
-            ? `Music is playing on ${outputRoute}`
-            : undefined
-      }
+      subtitle={thisPhoneSubtitle(output)}
       trailing={
-        here ? <MaterialIcons name="check" size={20} color={RelistenBlue[300]} /> : undefined
+        output ? undefined : <MaterialIcons name="check" size={20} color={RelistenBlue[300]} />
       }
       onPress={
-        sonosPlaying
+        onOrMovingToSonos
           ? () => {
               void sonosSession.transferToPhone();
               router.back();
@@ -262,14 +258,17 @@ function roomStatus(
   active: boolean
 ): { text?: string; tone?: 'error'; trailing?: ReactNode } {
   if (handoff?.phase === 'connecting') {
-    return { text: 'Connecting…', trailing: <Spinner /> };
+    return { text: 'Connecting…', trailing: <CancelConnectingButton /> };
   }
-  if (handoff?.phase === 'done' && handoff.outcome.kind !== 'playing') {
-    return handoff.outcome.kind === 'refused'
-      ? { text: handoff.outcome.message, tone: 'error' }
-      : { text: HANDOFF_UNCONFIRMED_MESSAGE, tone: 'error' };
+  // A cancelled handoff shows nothing: the listener chose the phone.
+  const outcome = handoff?.phase === 'done' ? handoff.outcome : undefined;
+  if (outcome?.kind === 'refused') {
+    return { text: outcome.message, tone: 'error' };
   }
-  if (active || handoff?.phase === 'done') {
+  if (outcome?.kind === 'uncertain') {
+    return { text: HANDOFF_UNCONFIRMED_MESSAGE, tone: 'error' };
+  }
+  if (active || outcome?.kind === 'playing') {
     return {
       text: 'Playing your queue',
       trailing: <MaterialIcons name="check" size={20} color={RelistenBlue[300]} />,
@@ -381,6 +380,42 @@ function OutputRow({
     </TouchableOpacity>
   ) : (
     content
+  );
+}
+
+/** What tapping This iPhone would do, or where music plays instead of the phone. */
+function thisPhoneSubtitle(output: PlayerOutput | null): string | undefined {
+  if (!output) {
+    return undefined;
+  }
+  if (output.kind !== 'sonos') {
+    return `Music is playing on ${output.name}`;
+  }
+  return output.connecting
+    ? `Tap to play here instead of ${output.name}`
+    : `Tap to move playback from ${output.name}`;
+}
+
+/**
+ * Stops waiting for a room and keeps playback on this phone. Cancelling
+ * while another room is controlled moves playback here too, since the
+ * listener chose to leave that room.
+ */
+function CancelConnectingButton() {
+  return (
+    <View className="flex-row items-center">
+      <Spinner />
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel="Cancel, and play on this phone"
+        className="ml-3 py-2"
+        hitSlop={8}
+        // Cancelling is choosing this phone: it abandons the handoff and leaves any room.
+        onPress={() => void sonosSession.transferToPhone()}
+      >
+        <RelistenText className="text-base text-relisten-blue-300">Cancel</RelistenText>
+      </TouchableOpacity>
+    </View>
   );
 }
 

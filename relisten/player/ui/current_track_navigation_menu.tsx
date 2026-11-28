@@ -6,7 +6,11 @@ import {
   type NativeActionEvent,
 } from '@/relisten/components/menus/native_menu_view';
 import { useRelistenPlayerCurrentTrack } from '@/relisten/player/relisten_player_queue_hooks';
-import { type RelistenTabGroupSegment, useGroupSegment } from '@/relisten/util/routes';
+import {
+  isRelistenTabGroupSegment,
+  type RelistenTabGroupSegment,
+  useGroupSegment,
+} from '@/relisten/util/routes';
 import { showVenueName, showVenueRoute } from '@/relisten/util/venue_route';
 import { router, useSegments } from 'expo-router';
 import { type ReactNode, useCallback, useMemo, useRef } from 'react';
@@ -24,8 +28,6 @@ export type CurrentTrackNavigationActionId =
   | (typeof ACTION_IDS)[keyof typeof ACTION_IDS]
   | GoToSongActionId;
 
-const TAB_GROUP_SEGMENTS: readonly string[] = ['(artists)', '(myLibrary)', '(offline)'];
-
 /**
  * The tab showing under the player. The player renders as part of the Artists
  * tab, but its venue link has to stay in the tab that is showing: from My
@@ -35,8 +37,7 @@ const TAB_GROUP_SEGMENTS: readonly string[] = ['(artists)', '(myLibrary)', '(off
  */
 function useShowingTab(): RelistenTabGroupSegment {
   const segments: string[] = useSegments();
-  const tab = segments.find((segment) => TAB_GROUP_SEGMENTS.includes(segment));
-  return (tab as RelistenTabGroupSegment | undefined) ?? '(artists)';
+  return segments.find(isRelistenTabGroupSegment) ?? '(artists)';
 }
 
 /**

@@ -3,7 +3,11 @@ import { FavoriteObjectButton } from '@/relisten/components/favorite_icon_button
 import Plur from '@/relisten/components/plur';
 import { SubtitleRow, SubtitleText } from '@/relisten/components/row_subtitle';
 import RowTitle from '@/relisten/components/row_title';
-import { SectionedListItem } from '@/relisten/components/sectioned_list_item';
+import {
+  SectionedListItem,
+  type SectionedListItemProps,
+  type TouchableOpacityRef,
+} from '@/relisten/components/sectioned_list_item';
 import { SourceTrackSucceededIndicator } from '@/relisten/components/source/source_track_offline_indicator';
 import { PopularityIndicator } from '@/relisten/components/popularity_indicator';
 import { Artist } from '@/relisten/realm/models/artist';
@@ -15,11 +19,9 @@ import { useArtistHasOfflineTracks } from '@/relisten/realm/root_services';
 import { useGroupSegment, useIsOfflineTab } from '@/relisten/util/routes';
 import { Link } from 'expo-router';
 import React from 'react';
-import { TouchableOpacity } from 'react-native';
 import { useFilters } from '@/relisten/components/filtering/filters';
 import { ArtistSortKey } from '@/relisten/components/artist_filters';
 
-type TouchableOpacityRef = React.ElementRef<typeof TouchableOpacity>;
 type ArtistListItemProps = {
   artist: Artist;
   metadata?: ArtistMetadataSummary;
@@ -49,12 +51,62 @@ const ArtistRowActions = ({ artist }: { artist: Artist }) => {
   );
 };
 
+/**
+ * The artist row itself, without its link: the artist lists wrap it in a
+ * `Link`, and search passes its own `onPress`.
+ */
+export const ArtistRow = React.forwardRef<
+  TouchableOpacityRef,
+  SectionedListItemProps & {
+    artist: Artist;
+    metadata: ArtistMetadataSummary;
+    isTrendingSort?: boolean;
+    /** The favorite heart at the end; search leaves it off. */
+    showFavorite?: boolean;
+  }
+>(({ artist, metadata, isTrendingSort = false, showFavorite = true, ...pressable }, ref) => {
+  const hasOfflineTracks = useArtistHasOfflineTracks(artist.uuid);
+
+  return (
+    <SectionedListItem ref={ref} {...pressable}>
+      <Flex cn="items-center justify-between" full>
+        <Flex cn="flex-1 flex-col pr-3">
+          <Flex cn="items-center">
+            <Flex cn="flex-1 pr-2">
+              <RowTitle>{artist.name}</RowTitle>
+            </Flex>
+            <Flex cn="flex-shrink-0 items-center">
+              <ArtistPopularitySummary artist={artist} isTrendingSort={isTrendingSort} />
+            </Flex>
+          </Flex>
+          <SubtitleRow cn="flex flex-row justify-between">
+            <SubtitleText>
+              <Plur word="show" count={metadata.shows} />
+              {hasOfflineTracks && (
+                <>
+                  &nbsp;
+                  <SourceTrackSucceededIndicator />
+                </>
+              )}
+            </SubtitleText>
+            <SubtitleText>
+              <Plur word="tape" count={metadata.sources} />
+            </SubtitleText>
+          </SubtitleRow>
+        </Flex>
+        {showFavorite && <ArtistRowActions artist={artist} />}
+      </Flex>
+    </SectionedListItem>
+  );
+});
+
+ArtistRow.displayName = 'ArtistRow';
+
 const ArtistListItemLayout = React.forwardRef<
   TouchableOpacityRef,
   { artist: Artist; metadata: ArtistMetadataSummary; isTrendingSort: boolean }
 >(({ artist, metadata, isTrendingSort }, ref) => {
   const groupSegment = useGroupSegment();
-  const hasOfflineTracks = useArtistHasOfflineTracks(artist.uuid);
 
   return (
     <Link
@@ -66,35 +118,7 @@ const ArtistListItemLayout = React.forwardRef<
       }}
       asChild
     >
-      <SectionedListItem ref={ref}>
-        <Flex cn="items-center justify-between" full>
-          <Flex cn="flex-1 flex-col pr-3">
-            <Flex cn="items-center">
-              <Flex cn="flex-1 pr-2">
-                <RowTitle>{artist.name}</RowTitle>
-              </Flex>
-              <Flex cn="flex-shrink-0 items-center">
-                <ArtistPopularitySummary artist={artist} isTrendingSort={isTrendingSort} />
-              </Flex>
-            </Flex>
-            <SubtitleRow cn="flex flex-row justify-between">
-              <SubtitleText>
-                <Plur word="show" count={metadata.shows} />
-                {hasOfflineTracks && (
-                  <>
-                    &nbsp;
-                    <SourceTrackSucceededIndicator />
-                  </>
-                )}
-              </SubtitleText>
-              <SubtitleText>
-                <Plur word="tape" count={metadata.sources} />
-              </SubtitleText>
-            </SubtitleRow>
-          </Flex>
-          <ArtistRowActions artist={artist} />
-        </Flex>
-      </SectionedListItem>
+      <ArtistRow ref={ref} artist={artist} metadata={metadata} isTrendingSort={isTrendingSort} />
     </Link>
   );
 });

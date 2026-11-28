@@ -68,9 +68,10 @@ function pushUndo(playlistId: string, step: UndoStep) {
  * after an edit, so the toast's Undo can never reach an earlier one. Returns
  * `sent` when an account edit already reached the server.
  */
-export function undoForLatestEdit(
-  playlistId: string
-): (realm: Realm) => 'undone' | 'sent' | 'gone' {
+/** What Undo did: removed the edit, found it already sent, or found nothing. */
+export type UndoOutcome = 'undone' | 'sent' | 'gone';
+
+export function undoForLatestEdit(playlistId: string): (realm: Realm) => UndoOutcome {
   const stack = undoStacks.get(playlistId);
   const step = stack?.[stack.length - 1];
   return (realm) => {

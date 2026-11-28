@@ -148,6 +148,7 @@ import {
   applyTrack,
   applyYearDetail,
   CatalogApplyError,
+  seedCatalogSearchArtist,
 } from '@/relisten/realm/catalog_apply';
 import { ShowWithFullSourcesNetworkBackedBehavior } from './models/show_repo';
 import { useSongShows, fetchSongShows } from './models/shows/song_shows_repo';
@@ -318,7 +319,7 @@ function importedVenueResource(name = 'Imported Hall'): ImportedVenueResource {
 }
 
 function songShow(show: ShowSummaryResource) {
-  return { show, timings: { single_song: null, multi_song: null } };
+  return { show, song_popularity: null, timings: { single_song: null, multi_song: null } };
 }
 
 function normalizedSongDetailResource(
@@ -1011,13 +1012,21 @@ describe('catalog Realm apply', () => {
     expect(fetch).toHaveBeenCalledTimes(3);
   });
 
+  it('opens an artist from a search snapshot without replacing it on another tap', () => {
+    realm.write(() => seedCatalogSearchArtist(realm, artistResource()));
+    expect(realm.objectForPrimaryKey(Artist, artistUuid)?.name).toBe('Test Artist');
+
+    realm.write(() => seedCatalogSearchArtist(realm, artistResource('Old Artist Name')));
+    expect(realm.objectForPrimaryKey(Artist, artistUuid)?.name).toBe('Test Artist');
+  });
+
   it('loads canonical browse, imported venue detail, and online song results through the API', async () => {
     realm.write(() => seedArtistAndYear(realm));
     const venue = artistVenueResource();
     const song = normalizedSongDetailResource();
     const venueAlias = 'venue_00000099';
     const songAlias = 'song_00000099';
-    const show = showSummaryResource();
+    const show = { ...showSummaryResource(), popularity: popularityResource(850) };
     const responses = new Map<string, object>([
       ['/artists', [artistResource()]],
       [
@@ -1028,7 +1037,10 @@ describe('catalog Realm apply', () => {
       [`/artists/${artistId}/venues/${venue.venue.id}`, { ...venue, shows: [show] }],
       [`/venues/${venue.venue.id}`, { ...venue.venue, shows: [show] }],
       [`/imported-venues/${importedVenueId}`, { ...importedVenueResource(), shows: [show] }],
-      [`/songs/${song.id}`, { ...song, shows: [songShow(show)] }],
+      [
+        `/songs/${song.id}`,
+        { ...song, shows: [{ ...songShow(show), song_popularity: popularityResource(42) }] },
+      ],
       [`/imported-songs/${importedSongId}`, { ...importedSongResource(), shows: [show] }],
       [`/songs/${song.id}/tracks`, { ...song, tracks: [trackResource()] }],
       [`/artists/${artistId}/venues/${venueAlias}`, { ...venue, shows: [show] }],
@@ -1099,8 +1111,12 @@ describe('catalog Realm apply', () => {
     const onlineSong = await fetchSongShows(realm, api, artistUuid, song.id);
     expect(onlineSong.error).toBeUndefined();
     expect(onlineSong.data?.shows.map((row) => row.uuid)).toEqual([showUuid]);
+    expect(onlineSong.data?.popularityByShow?.get(showUuid)?.windows.days30d.plays).toBe(42);
+    expect(onlineSong.data?.shows[0].popularity?.windows.days30d.plays).toBe(850);
     const importedSong = await fetchSongShows(realm, api, artistUuid, importedSongUuid);
     expect(importedSong.data?.song?.favorite.targetKind).toBe('imported_song');
+    expect(importedSong.data?.popularityByShow).toBeUndefined();
+    expect(importedSong.data?.shows[0].popularity?.windows.days30d.plays).toBe(850);
     const recordings = await fetchSongTracks(realm, api, artistUuid, song.id);
     expect(recordings.error).toBeUndefined();
     expect(recordings.data?.tracks.map((row) => row.uuid)).toEqual([trackAUuid]);

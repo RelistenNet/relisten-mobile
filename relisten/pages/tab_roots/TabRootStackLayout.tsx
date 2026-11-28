@@ -13,6 +13,7 @@ const TITLES = {
   '(artists)': 'Artists',
   '(myLibrary)': 'My Library',
   '(offline)': 'Offline',
+  '(search)': 'Search',
 };
 
 export default function TabRootStackLayout() {
@@ -32,7 +33,8 @@ export default function TabRootStackLayout() {
               backgroundColor: RelistenBlue['950'],
             },
             headerTitle: () => {
-              return groupSegment === '(artists)' ? (
+              // Artists and Search show the logo; Search's bar sits under it.
+              return groupSegment === '(artists)' || groupSegment === '(search)' ? (
                 <Image
                   source={RelistenWhite}
                   onError={(error) => console.log('Image failed to load:', error.nativeEvent.error)}

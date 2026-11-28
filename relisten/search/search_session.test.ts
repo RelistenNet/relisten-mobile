@@ -1,0 +1,362 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { SearchSession, type SearchContext } from './search_session';
+import type { SearchRequest, SearchResponse } from './search_types';
+import { searchResponse } from './search_test_fixtures';
+
+interface PendingFetch {
+  request: SearchRequest;
+  signal: AbortSignal;
+  resolve(response: SearchResponse): void;
+  reject(error: Error): void;
+}
+
+function response(q: string, playlistLabels: string[] = []): SearchResponse {
+  return searchResponse({
+    q,
+    results: playlistLabels.map((label) => ({
+      kind: 'playlist',
+      key: `playlist:${label}`,
+      playlist: { id: `playlist_${label}`, name: label, track_count: 1, owned: true },
+    })),
+  });
+}
+
+function context(change: Partial<SearchContext> = {}): SearchContext {
+  return {
+    accountKey: 'alice',
+    signedIn: true,
+    online: true,
+    boostArtistIds: [],
+    ...change,
+  };
+}
+
+describe('SearchSession', () => {
+  let fetches: PendingFetch[];
+  let session: SearchSession;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    fetches = [];
+    session = new SearchSession('explore', (request, _signedIn, signal) => {
+      // Ignores the abort, like an answer whose body is already being read
+      // when the query changes, so only the generation check can drop it.
+      return new Promise<SearchResponse>((resolve, reject) => {
+        fetches.push({ request, signal, resolve, reject });
+      });
+    });
+    session.setContext(context());
+  });
+
+  afterEach(() => {
+    session.dispose();
+    vi.useRealTimers();
+  });
+
+  it('drops an answer to the old query that lands during the new query’s debounce', async () => {
+    session.setQuery('lawn');
+    await vi.advanceTimersByTimeAsync(120);
+    expect(fetches).toHaveLength(1);
+
+    session.setQuery('lawn boy');
+    // The old request is aborted the moment the query changes...
+    expect(fetches[0].signal.aborted).toBe(true);
+    // ...and even if its answer still arrives, it is not rendered.
+    fetches[0].resolve(response('lawn'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(session.getSnapshot().response).toBeNull();
+    expect(session.getSnapshot().pending).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(120);
+    expect(fetches).toHaveLength(2);
+    expect(fetches[1].request.q).toBe('lawn boy');
+    expect(fetches[1].request.typing).toBe(true);
+    fetches[1].resolve(response('lawn boy'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(session.getSnapshot().response?.q).toBe('lawn boy');
+    expect(session.getSnapshot().pending).toBe(false);
+  });
+
+  it('replaces the typing answer with the full one once typing stops', async () => {
+    session.setQuery('cornell 77');
+    await vi.advanceTimersByTimeAsync(120);
+    expect(fetches[0].request.typing).toBe(true);
+
+    // The typing request is still out when typing settles; it gives way.
+    await vi.advanceTimersByTimeAsync(580);
+    expect(fetches[0].signal.aborted).toBe(true);
+    expect(fetches[1].request).toMatchObject({ q: 'cornell 77', typing: false });
+
+    // Even if the aborted typing answer lands last, it isn't shown.
+    fetches[1].resolve(response('cornell 77'));
+    await vi.advanceTimersByTimeAsync(0);
+    fetches[0].resolve(response('typing answer'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(session.getSnapshot().response?.q).toBe('cornell 77');
+    expect(session.getSnapshot().pending).toBe(false);
+  });
+
+  it('keeps the typing answer when the full search fails', async () => {
+    session.setQuery('cornell 77');
+    await vi.advanceTimersByTimeAsync(120);
+    fetches[0].resolve(response('cornell 77'));
+    await vi.advanceTimersByTimeAsync(580);
+
+    fetches[1].reject(new Error('timeout'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(session.getSnapshot()).toMatchObject({ failed: false, pending: false });
+    expect(session.getSnapshot().response?.q).toBe('cornell 77');
+  });
+
+  it('sends no second full search in a tab, which asks for full results already', async () => {
+    session.setScope('shows');
+    await vi.advanceTimersByTimeAsync(0);
+    session.setQuery('scarlet fire');
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fetches.filter((fetch) => fetch.request.q === 'scarlet fire')).toHaveLength(1);
+  });
+
+  it('sends no full search while the listener keeps typing', async () => {
+    session.setQuery('corn');
+    await vi.advanceTimersByTimeAsync(500);
+    session.setQuery('cornell');
+    await vi.advanceTimersByTimeAsync(500);
+    expect(fetches.map((fetch) => fetch.request.typing)).toEqual([true, true]);
+  });
+
+  it('keeps the current results on screen until the next answer replaces them', async () => {
+    session.setQuery('tweezer');
+    session.submit();
+    fetches[0].resolve(response('tweezer'));
+    await vi.advanceTimersByTimeAsync(0);
+
+    session.setQuery('tweezer reprise');
+    expect(session.getSnapshot().response?.q).toBe('tweezer');
+    expect(session.getSnapshot().responseInputs?.query).toBe('tweezer');
+  });
+
+  it('discards an answer that completes after an account switch and clears the list', async () => {
+    session.setQuery('jam');
+    session.submit();
+    fetches[0].resolve(response('jam', ['Alice private jams']));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(session.getSnapshot().response?.results).toHaveLength(1);
+
+    session.submit();
+    session.setContext(context({ accountKey: 'bob' }));
+    // Alice's list is gone at once, before Bob's answer arrives.
+    expect(session.getSnapshot().response).toBeNull();
+
+    // A late answer fetched for Alice never reaches the screen.
+    fetches[1].resolve(response('jam', ['Alice private jams']));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(session.getSnapshot().response).toBeNull();
+
+    fetches[2].resolve(response('jam', ['Bob public jams']));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(session.getSnapshot().response?.results[0]).toMatchObject({
+      playlist: { name: 'Bob public jams' },
+    });
+  });
+
+  it('sends removed chips and Add Tracks’ playlist exclusion in ignore', async () => {
+    const addTracks = new SearchSession('add_tracks', (request, _signedIn, signal) => {
+      fetches.push({ request, signal, resolve: () => {}, reject: () => {} });
+      return new Promise<SearchResponse>(() => {});
+    });
+    addTracks.setContext(context());
+
+    addTracks.setQuery('phish 2017');
+    addTracks.removeChip('year');
+
+    expect(fetches.at(-1)?.request).toMatchObject({
+      mode: 'add_tracks',
+      typing: false,
+      ignore: ['year', 'playlists'],
+    });
+    addTracks.dispose();
+  });
+
+  it('clears an explicit artist filter when its chip is removed', () => {
+    session.setQuery('creek');
+    session.setArtistFilter({ artistId: 'artist_1', label: 'Billy Strings' });
+    expect(fetches.at(-1)?.request.artistId).toBe('artist_1');
+
+    session.removeChip('artist');
+    expect(session.getSnapshot().inputs.artistFilter).toBeNull();
+    expect(fetches.at(-1)?.request.artistId).toBeUndefined();
+    expect(fetches.at(-1)?.request.ignore).toEqual([]);
+  });
+
+  it('gives each request its own request_id', () => {
+    session.setQuery('a');
+    session.submit();
+    session.submit();
+    const [first, second] = fetches.map((fetch) => fetch.request.requestId);
+    expect(first).not.toBe(second);
+  });
+
+  it('narrows to a tour’s shows under its artist in one request', () => {
+    session.narrowToTour({ artistId: 'artist_x', label: 'Phish' }, 'Summer Tour 1997');
+    expect(fetches).toHaveLength(1);
+    expect(fetches[0].request).toMatchObject({
+      q: 'Summer Tour 1997',
+      scope: 'shows',
+      artistId: 'artist_x',
+      typing: false,
+    });
+  });
+
+  it('stays quiet offline and searches again on reconnect', () => {
+    session.setContext(context({ online: false }));
+    session.setQuery('creek');
+    session.submit();
+    expect(fetches).toHaveLength(0);
+
+    session.setContext(context({ online: true }));
+    expect(fetches).toHaveLength(1);
+    expect(fetches[0].request.q).toBe('creek');
+  });
+
+  it('drops a pending debounce when the app goes offline', async () => {
+    session.setQuery('creek');
+    session.setContext(context({ online: false }));
+    await vi.advanceTimersByTimeAsync(500);
+    expect(fetches).toHaveLength(0);
+    expect(session.getSnapshot().pending).toBe(false);
+  });
+
+  it('brings removed chips back when the text changes', () => {
+    session.setQuery('phish 2017');
+    session.removeChip('year');
+    expect(session.getSnapshot().inputs.removedChipKeys).toEqual(['year']);
+
+    session.setQuery('phish 2019');
+    expect(session.getSnapshot().inputs.removedChipKeys).toEqual([]);
+  });
+
+  it('follows playlist pages past an empty one, since hidden cards are filtered after paging', async () => {
+    session.setScope('playlists');
+    session.setQuery('jams');
+    session.submit();
+    fetches.at(-1)!.resolve({ ...response('jams', ['First']), next_page: 2 });
+    await vi.advanceTimersByTimeAsync(0);
+
+    // One call to the end of the list keeps going past the empty page 2.
+    void session.loadMore();
+    expect(fetches.at(-1)?.request).toMatchObject({
+      page: 2,
+      scope: 'playlists',
+    });
+    fetches.at(-1)!.resolve({ ...response('jams', []), next_page: 3 });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(fetches.at(-1)?.request.page).toBe(3);
+    fetches.at(-1)!.resolve({ ...response('jams', ['Third']), next_page: null });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(session.getSnapshot().response?.results.map((row) => row.key)).toEqual([
+      'playlist:First',
+      'playlist:Third',
+    ]);
+    expect(session.getSnapshot().loadingMore).toBe(false);
+  });
+
+  it('waits for the next scroll after five pages that add nothing', async () => {
+    session.setScope('playlists');
+    session.setQuery('jams');
+    session.submit();
+    fetches.at(-1)!.resolve({ ...response('jams', ['First']), next_page: 2 });
+    await vi.advanceTimersByTimeAsync(0);
+
+    void session.loadMore();
+    for (let page = 2; page <= 6; page++) {
+      expect(fetches.at(-1)?.request.page).toBe(page);
+      fetches.at(-1)!.resolve({ ...response('jams', []), next_page: page + 1 });
+      await vi.advanceTimersByTimeAsync(0);
+    }
+
+    expect(fetches.at(-1)?.request.page).toBe(6);
+    expect(session.getSnapshot()).toMatchObject({ loadingMore: false });
+    expect(session.getSnapshot().response?.next_page).toBe(7);
+  });
+
+  it('keeps the pages shown and retries the same page after a failed one', async () => {
+    session.setScope('playlists');
+    session.setQuery('jams');
+    session.submit();
+    fetches.at(-1)!.resolve({ ...response('jams', ['First']), next_page: 2 });
+    await vi.advanceTimersByTimeAsync(0);
+
+    void session.loadMore();
+    fetches.at(-1)!.reject(new Error('timeout'));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(session.getSnapshot()).toMatchObject({ failed: false, loadingMore: false });
+    expect(session.getSnapshot().response?.results).toHaveLength(1);
+    void session.loadMore();
+    expect(fetches.at(-1)?.request.page).toBe(2);
+  });
+
+  it('refetches a selected reading and clears it on an edit', () => {
+    session.setQuery('capitol theatre');
+    session.selectReading('venue:passaic');
+    expect(fetches.at(-1)?.request).toMatchObject({
+      q: 'capitol theatre',
+      readingId: 'venue:passaic',
+      typing: false,
+    });
+
+    session.setQuery('capitol');
+    session.submit();
+    expect(fetches.at(-1)?.request.readingId).toBeUndefined();
+  });
+
+  it('doesn’t page an All answer after switching to Playlists', async () => {
+    session.setQuery('jams');
+    session.submit();
+    fetches.at(-1)!.resolve({ ...response('jams', ['First']), next_page: 2 });
+    await vi.advanceTimersByTimeAsync(0);
+
+    session.setScope('playlists');
+    const before = fetches.length;
+    void session.loadMore();
+    expect(fetches).toHaveLength(before);
+  });
+
+  it('reports a failed request so the screen can offer a retry', async () => {
+    const failing = new SearchSession('explore', () => Promise.reject(new Error('offline')));
+    failing.setContext(context());
+    failing.setQuery('creek');
+    failing.submit();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(failing.getSnapshot().failed).toBe(true);
+    expect(failing.getSnapshot().pending).toBe(false);
+    failing.dispose();
+  });
+
+  it('marks a failure even with an older answer on screen, and clears it on retry', async () => {
+    session.setQuery('lawn');
+    session.submit();
+    fetches[0].resolve(response('lawn'));
+    await vi.advanceTimersByTimeAsync(0);
+
+    session.setQuery('lawn boy');
+    session.submit();
+    fetches.at(-1)!.reject(new Error('offline'));
+    await vi.advanceTimersByTimeAsync(0);
+    // The old answer is still held, so the screen must check `failed` first.
+    expect(session.getSnapshot()).toMatchObject({
+      failed: true,
+      pending: false,
+    });
+    expect(session.getSnapshot().responseInputs?.query).toBe('lawn');
+
+    session.retry();
+    expect(session.getSnapshot()).toMatchObject({
+      failed: false,
+      pending: true,
+    });
+    expect(fetches.at(-1)?.request.q).toBe('lawn boy');
+  });
+});

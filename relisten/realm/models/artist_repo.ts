@@ -15,7 +15,7 @@ import { Artist, ArtistFeaturedFlags } from './artist';
 import { NetworkBackedBehavior } from '@/relisten/realm/network_backed_behavior';
 import { useFavoriteCatalogUuids } from '@/relisten/realm/root_services';
 import { RealmQueryValueStream, ValueStream } from '@/relisten/realm/value_streams';
-import { useGroupSegment, useIsOfflineTab } from '@/relisten/util/routes';
+import { useIncludesDeletedCatalog, useIsOfflineTab } from '@/relisten/util/routes';
 import { filterForUser, useRealmTabsFilter } from '../realm_filters';
 import { Show } from './show';
 import { Source } from './source';
@@ -127,7 +127,7 @@ export function artistsNetworkBackedBehavior(
 export function useArtists(options?: NetworkBackedBehaviorOptions) {
   const realm = useRealm();
   const isOfflineTab = useIsOfflineTab();
-  const includeDeleted = useGroupSegment() !== '(artists)';
+  const includeDeleted = useIncludesDeletedCatalog();
   const favoriteArtistUuids = useFavoriteCatalogUuids('artist');
 
   const behavior = useMemo(() => {
@@ -271,7 +271,7 @@ export function useArtist(
     };
   }, [options]);
   const realm = useRealm();
-  const includeDeleted = useGroupSegment() !== '(artists)';
+  const includeDeleted = useIncludesDeletedCatalog();
   const behavior = useMemo(() => {
     return new ArtistBootstrapNetworkBackedBehavior(
       realm,
@@ -300,7 +300,7 @@ export function useArtistBySlug(
     };
   }, [options]);
   const realm = useRealm();
-  const includeDeleted = useGroupSegment() !== '(artists)';
+  const includeDeleted = useIncludesDeletedCatalog();
   const behavior = useMemo(() => {
     return new ArtistBootstrapNetworkBackedBehavior(
       realm,

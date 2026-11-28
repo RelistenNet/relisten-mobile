@@ -25,7 +25,7 @@ import { UsernameService } from './username_service';
 import { UsernameCommandStore } from './username_command_store';
 import { AccountCredentials, ValidatedCredentials } from './account_credentials';
 import { AccountAccessTokenSource } from './account_access_token_source';
-import { AccountRestoreResult, AccountSessionRestorer } from './account_session_restorer';
+import { AccountSessionRestorer } from './account_session_restorer';
 import { AccountLogoutRequest } from './api/account_logout_request';
 import {
   AccountDeletionOutcome,
@@ -80,7 +80,6 @@ export class AccountSessionCoordinator {
   private usernameUpdateInProgress = false;
   private sessionEpoch = 0;
   private transitioning = false;
-  private restoringCredentials = false;
   private callbackCompletion: {
     state: string | null;
     promise: Promise<AccountSignInResult>;
@@ -100,7 +99,7 @@ export class AccountSessionCoordinator {
     const tokenSource = new AccountAccessTokenSource(this.credentials, this.scopeSource, {
       currentEpoch: () => this.sessionEpoch,
       isTransitioning: () => this.transitioning,
-      isRestoring: () => this.restoringCredentials,
+      restoreFinished: () => this.restorePromise,
       profileRefreshed: (profile) => {
         this.publish({ status: 'signedIn', profile, error: null });
         void this.retryPendingUsername();
@@ -509,14 +508,7 @@ export class AccountSessionCoordinator {
 
   private async performSessionRestore(): Promise<void> {
     const epoch = ++this.sessionEpoch;
-    this.restoringCredentials = true;
-    let result: AccountRestoreResult | null;
-
-    try {
-      result = await this.sessionRestorer.restore(epoch);
-    } finally {
-      this.restoringCredentials = false;
-    }
+    const result = await this.sessionRestorer.restore(epoch);
 
     if (result) {
       this.publish(result);

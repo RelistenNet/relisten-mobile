@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   platform: 'ios',
   cast: { isCasting: false, deviceName: undefined as string | undefined },
   sonosRoomName: undefined as string | undefined,
+  sonosHandoff: undefined as { groupId: string; groupName: string } | undefined,
   getAudioOutputRoute: vi.fn(),
 }));
 vi.mock('@/modules/relisten-audio-player', () => ({
@@ -17,6 +18,7 @@ vi.mock('@/modules/relisten-audio-player', () => ({
 vi.mock('@/relisten/casting/cast_ui', () => ({ useRelistenCastStatus: () => state.cast }));
 vi.mock('@/relisten/sonos/sonos_room_store', () => ({
   useSonosRoomName: () => state.sonosRoomName,
+  useSonosHandoffInFlight: () => state.sonosHandoff,
 }));
 vi.mock('react-native', () => ({
   Platform: {
@@ -47,6 +49,7 @@ beforeEach(() => {
   state.platform = 'ios';
   state.cast = { isCasting: false, deviceName: undefined };
   state.sonosRoomName = undefined;
+  state.sonosHandoff = undefined;
   state.getAudioOutputRoute.mockReset().mockReturnValue({ name: '', isExternal: false });
 });
 
@@ -75,6 +78,13 @@ describe('player output feedback', () => {
     state.sonosRoomName = 'Office';
     expect(visibleRoute()).toContain('Office');
     expect(visibleRoute()).not.toContain('Headphones');
+  });
+
+  it('names the room the queue is moving to, over the room it leaves', () => {
+    state.sonosRoomName = 'Office';
+    state.sonosHandoff = { groupId: 'g2', groupName: 'Kitchen' };
+    expect(visibleRoute()).toContain('Connecting to Kitchen…');
+    expect(visibleRoute()).not.toContain('Office');
   });
 
   it('keeps a connected Cast destination visible before its name arrives', () => {

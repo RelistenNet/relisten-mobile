@@ -1,3 +1,4 @@
+import { popularSortValue } from '@/relisten/realm/models/popularity';
 import { Filter, SortDirection } from '@/relisten/components/filtering/filters';
 import { Year } from '@/relisten/realm/models/year';
 import { useLibraryMembershipIndex } from '@/relisten/realm/root_services';
@@ -41,11 +42,7 @@ export function useYearFilters(): Filter<YearFilterKey, Year>[] {
         active: false,
         isNumeric: true,
         sort: (years) =>
-          years.sort(
-            (a, b) =>
-              (a.popularity?.windows?.days30d?.hotScore ?? 0) -
-              (b.popularity?.windows?.days30d?.hotScore ?? 0)
-          ),
+          years.sort((a, b) => popularSortValue(a.popularity) - popularSortValue(b.popularity)),
       },
       {
         persistenceKey: YearFilterKey.Trending,

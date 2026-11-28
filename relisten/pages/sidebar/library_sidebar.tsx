@@ -15,7 +15,7 @@ import {
 import { RelistenBlue } from '@/relisten/relisten_blue';
 import { SidePane } from '@/relisten/util/side_pane';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { type Href, router, usePathname } from 'expo-router';
+import { type Href, router, usePathname, useSegments } from 'expo-router';
 import { type ComponentProps, type ReactNode, useEffect } from 'react';
 import { ScrollView, TouchableOpacity, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -92,6 +92,7 @@ export function LibrarySidebar() {
           >
             <ScrollView contentContainerStyle={{ paddingBottom: 16 }}>
               <AccountRow />
+              <SearchRow />
               <ActiveDownloadsRow />
               <SidebarPlaylists />
               <FavoriteArtists />
@@ -117,6 +118,7 @@ export function LibrarySidebar() {
 
 const COLLAPSED_SECTIONS = [
   { icon: 'account-circle', label: 'Account' },
+  { icon: 'magnify', label: 'Search' },
   { icon: 'playlist-music', label: 'Playlists' },
   { icon: 'heart-outline', label: 'Favorite Artists' },
   { icon: 'history', label: 'Recently Played' },
@@ -141,6 +143,21 @@ function CollapsedSectionIcons() {
         </TouchableOpacity>
       ))}
     </View>
+  );
+}
+
+/** Opens the Search tab, which the sidebar layout otherwise reaches only from the tab bar. */
+function SearchRow() {
+  // Paths drop route groups, so only the segments tell which tab is showing.
+  const segments: string[] = useSegments();
+
+  return (
+    <SidebarRow
+      icon="magnify"
+      title="Search"
+      selected={segments.includes('(search)')}
+      href={{ pathname: '/relisten/tabs/(search)' }}
+    />
   );
 }
 

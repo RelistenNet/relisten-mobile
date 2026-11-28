@@ -172,6 +172,14 @@ export class RelistenPlayerQueue {
 
   private shuffledTracks: PlayerQueueTrack[] = [];
   private shuffledTracksCurrentIndex?: number;
+
+  /**
+   * Occurrences shuffle added on a player that keeps played tracks in place
+   * (Sonos), so the songs before the current one play again in the shuffle.
+   * Turning shuffle off removes those not yet played. Held in memory only: a
+   * copy restored after a relaunch stays as an ordinary queue entry.
+   */
+  private replayCopyIds = new Set<string>();
   // endregion
 
   // region Public API
@@ -267,6 +275,7 @@ export class RelistenPlayerQueue {
     for (const track of newQueue) track.renewIdentifier();
     this.originalTracks = [...newQueue];
     this.originalTracksCurrentIndex = undefined;
+    this.replayCopyIds.clear();
 
     this.shuffledTracksCurrentIndex = undefined;
     this.prevNextTrackIndexIntentOffset = 0;
@@ -531,26 +540,72 @@ ${indentString(tracks)}
    * unshuffling puts the upcoming tracks back in their original order, again
    * with the rest of the current group next.
    */
+  /**
+   * Shuffle on a player that keeps played tracks in place (Sonos), where
+   * nothing up to the current track can move. Turning shuffle on shuffles
+   * what's left after the current track, plus a new copy of each song before
+   * it, so the whole queue plays on in random order even from its last
+   * track. Turning it off removes the copies not yet played and puts what's
+   * left back in order.
+   */
   private reorderUpcoming(shuffleState: PlayerShuffleState, current: PlayerQueueTrack) {
     const ordered = this.orderedTracks;
     const kept = ordered.slice(0, ordered.indexOf(current) + 1);
     const keptIds = new Set(kept.map((track) => track.identifier));
     const currentGroup = groupRuns(this.originalTracks).find((run) => run.includes(current)) ?? [];
     const groupRest = currentGroup.filter((track) => !keptIds.has(track.identifier));
-    const upcoming = [
+    let upcoming = [
       ...groupRest,
       ...this.originalTracks.filter(
         (track) => !keptIds.has(track.identifier) && !groupRest.includes(track)
       ),
     ];
 
-    this.originalTracks = [...kept, ...upcoming];
     if (shuffleState === PlayerShuffleState.SHUFFLE_ON) {
+      upcoming = [...upcoming, ...this.replayCopies(kept, current, upcoming)];
+      this.originalTracks = [...kept, ...upcoming];
       // Shuffled from the current track, which stays first, so its group's rest follows it.
       const shuffled = shuffleKeepingGroups([current, ...upcoming], current).slice(1);
       this.shuffledTracks = [...kept, ...shuffled];
+    } else {
+      upcoming = upcoming.filter((track) => !this.replayCopyIds.has(track.identifier));
+      this.replayCopyIds.clear();
+      this.originalTracks = [...kept, ...upcoming];
     }
     this.recalculateTrackIndexes(current.identifier);
+  }
+
+  /**
+   * One new occurrence of each song played before `current` that isn't
+   * already coming up, in queue order. A copied playlist group stays a group
+   * of its own, apart from the original still in the room's history.
+   */
+  private replayCopies(
+    kept: PlayerQueueTrack[],
+    current: PlayerQueueTrack,
+    upcoming: PlayerQueueTrack[]
+  ): PlayerQueueTrack[] {
+    const queued = new Set([current, ...upcoming].map((track) => track.sourceTrack.uuid));
+    const copiedSegments = new Map<string, string>();
+    const copies: PlayerQueueTrack[] = [];
+
+    for (const track of kept) {
+      if (queued.has(track.sourceTrack.uuid)) {
+        continue;
+      }
+      queued.add(track.sourceTrack.uuid);
+
+      const copy = track.newOccurrence();
+      const segment = track.playlistContext?.segmentInstanceId;
+      if (track.playlistContext && segment) {
+        const copiedSegment = copiedSegments.get(segment) ?? uuid();
+        copiedSegments.set(segment, copiedSegment);
+        copy.playlistContext = { ...track.playlistContext, segmentInstanceId: copiedSegment };
+      }
+      this.replayCopyIds.add(copy.identifier);
+      copies.push(copy);
+    }
+    return copies;
   }
 
   /**

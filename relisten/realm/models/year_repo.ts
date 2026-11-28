@@ -11,7 +11,7 @@ import {
   RealmQueryValueStream,
   ValueStream,
 } from '@/relisten/realm/value_streams';
-import { useGroupSegment, useIsOfflineTab } from '@/relisten/util/routes';
+import { useIncludesDeletedCatalog, useIsOfflineTab } from '@/relisten/util/routes';
 import { useMemo } from 'react';
 import Realm from 'realm';
 import { RelistenApiClient } from '../../api/client';
@@ -82,7 +82,7 @@ class YearsNetworkBackedBehavior extends NetworkBackedBehavior<
 export function useYears(artistUuid: string, options?: NetworkBackedBehaviorOptions) {
   const realm = useRealm();
   const isOfflineTab = useIsOfflineTab();
-  const includeDeleted = useGroupSegment() !== '(artists)';
+  const includeDeleted = useIncludesDeletedCatalog();
 
   const behavior = useMemo(() => {
     return yearsNetworkBackedModelArrayBehavior(
@@ -190,7 +190,7 @@ export function useYearShows(
 ): NetworkBackedResults<YearShows> {
   const realm = useRealm();
   const isOfflineTab = useIsOfflineTab();
-  const includeDeleted = useGroupSegment() !== '(artists)';
+  const includeDeleted = useIncludesDeletedCatalog();
 
   const behavior = useMemo(() => {
     return new YearShowsNetworkBackedBehavior(

@@ -57,6 +57,7 @@ export function PlaylistReadingList({
   search,
   header,
   emptyText,
+  emptyAction,
 }: {
   playlistId: string;
   /** Every group, which is what Play queues. */
@@ -67,6 +68,8 @@ export function PlaylistReadingList({
   search: PlaylistSearch;
   header: React.ReactElement;
   emptyText: string;
+  /** A way out of an empty playlist, such as Add Tracks. */
+  emptyAction?: { label: string; onPress: () => void };
 }) {
   const player = useRelistenPlayer();
   const online = useShouldMakeNetworkRequests();
@@ -131,13 +134,18 @@ export function PlaylistReadingList({
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
       ListEmptyComponent={
-        <RelistenText className="px-6 py-8 text-center text-gray-400">
-          {searching
-            ? `Nothing in this playlist matches “${query.trim()}”.`
-            : downloadedOnly
-              ? 'No downloaded tracks yet.'
-              : emptyText}
-        </RelistenText>
+        <View className="items-center px-6 py-8" style={{ gap: 12 }}>
+          <RelistenText className="text-center text-gray-400">
+            {searching
+              ? `Nothing in this playlist matches “${query.trim()}”.`
+              : downloadedOnly
+                ? 'No downloaded tracks yet.'
+                : emptyText}
+          </RelistenText>
+          {emptyAction && !searching && !downloadedOnly && (
+            <RelistenButton onPress={emptyAction.onPress}>{emptyAction.label}</RelistenButton>
+          )}
+        </View>
       }
       renderItem={({ item }) => {
         const linkPlaying = item.link !== undefined && item.segmentId === playingSegmentId;

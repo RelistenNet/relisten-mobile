@@ -105,7 +105,10 @@ describe('runSonosHandoff', () => {
     await expect(runSonosHandoff(client as never, request, always, timing)).resolves.toMatchObject({
       kind: 'playing',
     });
-    expect(client.request).toHaveBeenLastCalledWith('/v1/integrations/sonos/handoffs/req-1');
+    expect(client.request).toHaveBeenLastCalledWith(
+      '/v1/integrations/sonos/handoffs/req-1',
+      expect.objectContaining({ timeoutMs: expect.any(Number) })
+    );
   });
 
   it('leaves the outcome uncertain when the room never confirms', async () => {
@@ -156,7 +159,10 @@ describe('runSonosHandoff', () => {
     await expect(runSonosHandoff(client as never, request, always, timing)).resolves.toMatchObject({
       kind: 'playing',
     });
-    expect(client.request).toHaveBeenLastCalledWith('/v1/integrations/sonos/handoffs/req-1');
+    expect(client.request).toHaveBeenLastCalledWith(
+      '/v1/integrations/sonos/handoffs/req-1',
+      expect.objectContaining({ timeoutMs: expect.any(Number) })
+    );
   });
 
   it('keeps local playback paused when a lost submission is followed by a missing receipt', async () => {
@@ -259,9 +265,11 @@ describe('runSonosHandoff', () => {
 });
 
 describe('phoneMayResumeAfter', () => {
-  it('lets the phone play again only when the room refused the queue', () => {
+  it('lets the handoff’s starter resume the phone only when the room refused the queue', () => {
     expect(phoneMayResumeAfter({ kind: 'refused', message: '', reconnect: false })).toBe(true);
     expect(phoneMayResumeAfter({ kind: 'playing', handle: UUID_A })).toBe(false);
     expect(phoneMayResumeAfter({ kind: 'uncertain', reconnect: false })).toBe(false);
+    // After a cancel, whoever cancelled decides (`SonosSession.transferToPhone`).
+    expect(phoneMayResumeAfter({ kind: 'cancelled' })).toBe(false);
   });
 });

@@ -7,7 +7,10 @@ const { renderToStaticMarkup } = await vi.importActual<{
 
 const push = vi.hoisted(() => vi.fn());
 vi.mock('expo-router', () => ({ router: { push } }));
-vi.mock('@/relisten/util/routes', () => ({ useGroupSegment: () => '(artists)' }));
+vi.mock('@/relisten/util/routes', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/relisten/util/routes')>()),
+  useGroupSegment: () => '(artists)',
+}));
 vi.mock('@/relisten/components/menus/native_menu_icons', () => ({ nativeMenuIcons: {} }));
 vi.mock('@/relisten/util/push_show', () => ({
   usePushShowRespectingUserSettings: () => ({ pushShow: vi.fn() }),

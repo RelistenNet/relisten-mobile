@@ -1,4 +1,10 @@
-export const RELISTEN_TAB_KEYS = ['(artists)', '(myLibrary)', '(offline)', '(relisten)'] as const;
+export const RELISTEN_TAB_KEYS = [
+  '(artists)',
+  '(myLibrary)',
+  '(offline)',
+  '(search)',
+  '(relisten)',
+] as const;
 
 export type RelistenTabKey = (typeof RELISTEN_TAB_KEYS)[number];
 

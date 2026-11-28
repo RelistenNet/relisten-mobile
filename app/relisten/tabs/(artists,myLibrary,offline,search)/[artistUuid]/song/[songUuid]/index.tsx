@@ -53,6 +53,7 @@ export default function Page() {
           isLoading={isLoading}
           ListHeaderComponent={<SongHeader songResult={songResult} />}
           data={data}
+          popularityByShow={songResult.popularityByShow}
           filterOptions={{
             persistence: {
               key: ['artists', artistUuid, 'song', songUuid].join('/'),

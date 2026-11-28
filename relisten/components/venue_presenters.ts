@@ -1,6 +1,8 @@
 import type { NormalizedVenue } from '@/relisten/realm/models/catalog';
 
-export function normalizedVenueLocation(venue?: NormalizedVenue | null) {
+export function normalizedVenueLocation(
+  venue?: { city?: string | null; region?: string | null; country?: string | null } | null
+) {
   return [venue?.city, venue?.region, venue?.country].filter(Boolean).join(', ');
 }
 

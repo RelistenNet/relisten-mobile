@@ -1,3 +1,4 @@
+import { catalogPopularitySnapshot } from './models/popularity';
 import { applyCatalogRedirect } from './catalog_identity';
 import { ArtistFeature, hasArtistFeature } from '@/relisten/api/catalog/artist_features';
 /**
@@ -23,7 +24,6 @@ import type {
   ImportedSongWithShowsResource,
   ImportedVenueResource,
   ImportedVenueWithShowsResource,
-  PopularityResource,
   ShowResource,
   ShowSummaryResource,
   SongDetailResource,
@@ -69,34 +69,6 @@ function requiredDate(value: string, field: string) {
 
 function optionalDate(value: string | null, field: string) {
   return value === null ? null : requiredDate(value, field);
-}
-
-function popularityProperties(popularity: PopularityResource | null) {
-  if (!popularity) {
-    return null;
-  }
-
-  return {
-    momentumScore: popularity.momentum_score,
-    trendRatio: popularity.trend_ratio,
-    windows: {
-      hours48h: {
-        plays: popularity.windows['48h'].plays,
-        hours: popularity.windows['48h'].hours,
-        hotScore: popularity.windows['48h'].hot_score,
-      },
-      days7d: {
-        plays: popularity.windows['7d'].plays,
-        hours: popularity.windows['7d'].hours,
-        hotScore: popularity.windows['7d'].hot_score,
-      },
-      days30d: {
-        plays: popularity.windows['30d'].plays,
-        hours: popularity.windows['30d'].hours,
-        hotScore: popularity.windows['30d'].hot_score,
-      },
-    },
-  };
 }
 
 function requireObject<T extends object>(
@@ -229,7 +201,7 @@ function applyArtist(realm: Realm, resource: ArtistResource) {
       sortName: resource.sort_name ?? resource.name,
       featuresRaw: JSON.stringify(artistFeatures(resource)),
       upstreamSourcesRaw: JSON.stringify(resource.upstream_sources),
-      popularity: popularityProperties(resource.popularity),
+      popularity: catalogPopularitySnapshot(resource.popularity),
       showCount: resource.show_count,
       sourceCount: resource.source_count,
     } as unknown as Realm.Unmanaged<Artist>,
@@ -254,7 +226,7 @@ function applyYear(realm: Realm, resource: YearResource) {
       avgDuration: resource.avg_duration,
       avgRating: resource.avg_rating,
       year: resource.year,
-      popularity: popularityProperties(resource.popularity),
+      popularity: catalogPopularitySnapshot(resource.popularity),
     } as unknown as Realm.Unmanaged<Year>,
     Realm.UpdateMode.Modified
   );
@@ -480,7 +452,7 @@ function applyShowSummary(realm: Realm, resource: ShowSummaryResource) {
       hasSoundboardSource: resource.has_soundboard_source,
       hasStreamableFlacSource: resource.has_streamable_flac_source,
       sourceCount: resource.source_count,
-      popularity: popularityProperties(resource.popularity),
+      popularity: catalogPopularitySnapshot(resource.popularity),
       venue: importedVenue ?? null,
       tour: tour ?? null,
       artist,
@@ -1020,6 +992,15 @@ function applyShowCollection(
 /** A feed patches returned rows without deleting any shared catalog membership. */
 export function applyShowSummaries(realm: Realm, resources: ShowSummaryResource[]) {
   return applyShowCollection(realm, resources, 'Show feed', () => {});
+}
+
+/** A search result can supply a missing artist without refreshing the whole catalog. */
+export function seedCatalogSearchArtist(realm: Realm, artist: ArtistResource) {
+  const uuid = decodeUuidCatalogId(artist.id, 'artist');
+  // Search is a snapshot. Keep an existing artist's metadata and deletion state.
+  if (!realm.objectForPrimaryKey(Artist, uuid)) {
+    applyArtist(realm, artist);
+  }
 }
 
 /** Browse owns visibility; metadata patches retain rows and their existing links. */
